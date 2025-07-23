@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "SnapScraper",
+  "version": "1.0",
+  "description": "Download selected images from the page.",
+  "permissions": ["scripting", "activeTab", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "icons": {
+    "16": "image/download (1).png",
+    "32": "image/download (1).png",
+    "48": "image/download (1).png",
+    "128": "image/download (1).png"
+  }
+}

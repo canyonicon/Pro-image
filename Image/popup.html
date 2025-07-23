@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnapScraper</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="dark.css">
+</head>
+<body>
+  <div class="joker">
+      <div class="joker1">
+        <div class="ffde">
+          <div class="logo"><img src="image/download (1).png" alt=""></div>
+        </div>
+
+        <div class="scrol" id="scroll-controls">
+          <button id="scroll-up" title="Climb up"><icon>arrowtop</icon></button>
+          <button id="scroll-down" title="Go down"><icon>arrowbottom</icon></button>
+        </div>
+
+        <div class="ffde2">
+          <button class="Wave-cloud show-btn" data-id="2" style="border: 0;"><icon>Notifi</icon><new></button>
+          <button class="Wave-cloud show-btn" data-id="1" style="border: 0;"><a id="sitt"><icon>settings</icon></a></button>
+          <!-- <button class="Wave-cloud" style="border: solid 1px #ccc;"><img src="image/Login.avif" alt=""></button> -->
+        </div>
+      </div>
+
+      <!-- ---- -->
+      <div class="joker2">
+        <div class="cci">
+            <h2 style="margin: 0;position: relative;right: 3px;z-index: 30;">SnapScraper</h2>
+            <div style="display: flex;align-items: center;">
+              <div id="image-count" style="direction: rtl;">No information</div>
+              <button id="select-all">All</button>
+              <button id="deselect-all">Cansel</button>
+            </div>
+        </div>
+
+        <div class="ddeew">
+          <label for="searchInput"><icon>search</icon></label>
+          <input type="text" name="" id="searchInput" placeholder="Search by Surah name + link" autofocus>
+        </div>
+
+        <div id="images-container" class="images-container"></div>
+        <div class="cci xxo">
+          <div class="cci" style="margin: 0;">
+            <label>Download links file also <input type="checkbox" name="include" id="include-links-txt"></label>
+            <label style="margin-left: 8px;">Remove similarities <input type="checkbox" name="filter" id="filter-duplicates" /></label>
+          </div>
+          <button class="Wave-cloud" id="download-btn">Download images</button>
+        </div>
+
+        <!-- ------ -->
+        <div class="sitteng" id="div-1">
+          <div class="close-button close-btn"><button class="Wave-cloud"><icon>arrow_</icon></button></div>
+          <div class="sitteng-div">
+            <a class="sitteng-a">Scroll speed
+                <select id="scroll-speed">
+                  <option value="50">بطيء</option>
+                  <option value="100" selected>متوسط</option>
+                  <option value="200">سريع</option>
+                  <option value="400">سريع جداً</option>
+                </select>
+            </a>
+            <a class="sitteng-a">Type of images</a>
+            <div class="jaxe" id="">
+              <a>JPG</a> <a>JPEG</a> <a>PNG</a> <a>GIF</a> <a>WEBP</a> <a>BMP</a> <a>SVG</a> <a>ICO</a> <a>TIFF</a>
+            </div>
+            <label class="sitteng-a">Enlarge popup window <input type="checkbox" id="toggleVex"></label>
+            <label class="sitteng-a">Display images in two columns <input type="checkbox" id="zoom-toggle"></label>
+            <hr>
+            <label class="sitteng-a">Night mode <input type="checkbox" id="theme-toggle"></label>
+          </div>
+          <!-- ---- -->
+          <div class="no_scrol"></div>
+        </div>
+
+        <!-- --------- -->
+        <div class="sitteng" id="div-2">
+          <div class="close-button close-btn"><button class="Wave-cloud"><icon>arrow_</icon></button></div>
+          <div class="sitteng-div">
+            <div class="fggggrre">
+              <name>Notifications</name>
+              <button class="Wave-cloud" id="clear-all-notifications">Delete Notifications</button>
+            </div>
+            <div id="notifications-list"><no>No notifications...</no></div>
+          </div>
+          <!-- ---- -->
+          <div class="no_scrol"></div>
+        </div>
+      </div>
+  </div>
+  
+  <!-- <script src="jszip.min.js"></script> -->
+  <script src="popup.js"></script>
+  <script src="Wave-cloud.js"></script>
+  <script src="icons-svg.js"></script>
+  <script src="myScript.js"></script>
+  <script src="jszip.min.js"></script>
+</body>
+</html>

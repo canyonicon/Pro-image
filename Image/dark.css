@@ -1,0 +1,87 @@
+body.dark-mode {
+    background: #313439;
+    color: #fffffffc;
+}
+/* body.dark-mode .ffde2 button:hover {
+    background: #ffffff11;
+} */
+body.dark-mode .scrol button:hover {
+    background-color: #ffffff11;
+}
+body.dark-mode .ddeew {
+    background: #ffffff1c;
+}
+body.dark-mode .ddeew input {
+    color: rgba(255, 255, 255, 0.904);
+}
+body.dark-mode button {
+    color: white;
+}
+body.dark-mode .zoom1 #zood {
+    box-shadow: 0 0 0 1px inset #313439, 0 0 0 3px inset #78c0ffb3;
+}
+body.dark-mode icon svg {
+    color: #ededed;
+    fill: #ededed;
+}
+body.dark-mode .ddeew:focus-within {
+    box-shadow: 0px 2px 6px #2b2d31c7;
+    outline-color: #00000017;
+}
+body.dark-mode .xoox {
+    background: #0083f5;
+}
+body.dark-mode .xoox new {
+    background-color: #ffffff;
+}
+body.dark-mode .xoox:hover {
+    background: #269aff;
+}
+body.dark-mode .ffde2 button:hover {
+    background: #ffffff11;
+}
+body.dark-mode .jaxe a {
+    background: #42a7ff36;
+}
+body.dark-mode .jaxe a:hover {
+    background: #1b95ff61;
+}
+body.dark-mode .sitteng-a select {
+    background: #3f4246;
+    color: white;
+}
+body.dark-mode .sitteng-a select:hover {
+    outline: solid 1px #ffffff28;
+}
+body.dark-mode .sitteng {
+    background-color: #313439;
+}
+body.dark-mode .no_scrol {
+    background: #3134399e;
+}
+body.dark-mode .zoom {
+    background-color: #1d8aff;
+}
+body.dark-mode input[type="checkbox"]:hover:before {
+    background-color: #ffffff10;
+}
+body.dark-mode input[type="checkbox"]:active:before {
+    background-color: #ffffff1c;
+}
+body.dark-mode input[type="checkbox"]:checked:hover:before {
+    padding: 18px;
+    background: #0095ff26;
+}
+body.dark-mode input[type="checkbox"]:checked:active:before {
+    padding: 18px;
+    background: #0095ff4f;
+}
+body.dark-mode .close-button button:hover {
+    background: #ffffff11;
+}
+body.dark-mode #zood:hover {
+    background: #ffffff13;
+}
+body.dark-mode #zood:active {
+    background: #ffffff2f;
+}
