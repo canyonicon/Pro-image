@@ -639,3 +639,8 @@ body .zoom-x .image-item {
     padding: 0 16px;
     border-radius: 25px;
 }
+.zssx {
+    width: 31px;
+    height: 31px;
+    border-color: #0000;
+}
