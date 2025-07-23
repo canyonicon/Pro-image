@@ -6,8 +6,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const deselectAllBtn = document.getElementById("deselect-all");
   const includeTxtCheckbox = document.getElementById("include-links-txt");
   const filterDuplicatesCheckbox = document.getElementById("filter-duplicates");
+  const clearCacheBtn = document.getElementById("clear-cache-btn");
+  const saveOnReloadCheckbox = document.getElementById("save-on-reload");
 
-  filterDuplicatesCheckbox.checked = false;
+  // تحميل الإعدادات المحفوظة
+  filterDuplicatesCheckbox.checked = localStorage.getItem('filterDuplicates') === 'true';
+  saveOnReloadCheckbox.checked = localStorage.getItem('saveImagesEnabled') !== 'false';
 
   let allImages = [];
   let pendingImages = [];
@@ -49,7 +53,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       dialog.innerHTML = `
         ${message}
         <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px;">
-          <button id="confirmOk">Download</button>
+          <button id="confirmOk">Ok</button>
           <button id="confirmCancel">Cancel</button>
         </div>
       `;
@@ -76,8 +80,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Progress Bar Functions
   function createProgressBar() {
-    const progressBar = document.createElement('div');
-    progressBar.id = 'netnet-progress-bar';
+    const progressBar = document.createElement("div");
+    progressBar.id = "netnet-progress-bar";
     progressBar.style = `
       position: fixed;
       bottom: 20px;
@@ -90,7 +94,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       z-index: 10000;
       display: none;
     `;
-    
+
     progressBar.innerHTML = `
       <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
         <span id="netnet-progress-status">جاري التحضير...</span>
@@ -101,17 +105,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       </div>
       <button id="netnet-cancel-download" style="margin-top: 10px; padding: 5px 10px; background: #e74c3c; color: white; border: none; border-radius: 3px; cursor: pointer;">إلغاء التنزيل</button>
     `;
-    
+
     document.body.appendChild(progressBar);
     return progressBar;
   }
 
   function updateProgressBar(progress, current, total, message = "") {
-    const progressBar = document.getElementById('netnet-progress-bar');
-    const innerBar = document.getElementById('netnet-progress-bar-inner');
-    const status = document.getElementById('netnet-progress-status');
-    const percent = document.getElementById('netnet-progress-percent');
-    
+    const progressBar = document.getElementById("netnet-progress-bar");
+    const innerBar = document.getElementById("netnet-progress-bar-inner");
+    const status = document.getElementById("netnet-progress-status");
+    const percent = document.getElementById("netnet-progress-percent");
+
     if (progressBar && innerBar && status && percent) {
       const percentage = Math.round(progress * 100);
       innerBar.style.width = `${percentage}%`;
@@ -121,15 +125,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function showProgressBar() {
-    const progressBar = document.getElementById('netnet-progress-bar') || createProgressBar();
-    progressBar.style.display = 'block';
+    const progressBar =
+      document.getElementById("netnet-progress-bar") || createProgressBar();
+    progressBar.style.display = "block";
     return progressBar;
   }
 
   function hideProgressBar() {
-    const progressBar = document.getElementById('netnet-progress-bar');
+    const progressBar = document.getElementById("netnet-progress-bar");
     if (progressBar) {
-      progressBar.style.display = 'none';
+      progressBar.style.display = "none";
     }
   }
 
@@ -156,14 +161,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (view.getUint32(0) === 0x89504e47) return "png";
       if (view.getUint16(0) === 0xffd8) return "jpg";
       if (view.getUint32(0) === 0x47494638) return "gif";
-      if (view.getUint32(0) === 0x52494646 && view.getUint32(4) === 0x57454250) return "webp";
+      if (view.getUint32(0) === 0x52494646 && view.getUint32(4) === 0x57454250)
+        return "webp";
       if (view.getUint16(0) === 0x424d) return "bmp";
       if (view.getUint32(0) === 0x49492a00) return "tiff";
       if (view.getUint32(0) === 0x4d4d002a) return "tiff";
 
       const text = await blob.slice(0, 100).text();
       if (text.trim().startsWith("<svg") || text.includes("<svg")) return "svg";
-      if (view.getUint16(0) === 0x0000 && view.getUint16(2) === 0x0001) return "ico";
+      if (view.getUint16(0) === 0x0000 && view.getUint16(2) === 0x0001)
+        return "ico";
     } catch (error) {
       console.error("Error detecting image type:", error);
     }
@@ -171,10 +178,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function getOriginalExtension(url) {
-    const validExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff'];
-    const urlWithoutParams = url.split('?')[0].split('#')[0];
+    const validExts = [
+      "jpg",
+      "jpeg",
+      "png",
+      "gif",
+      "webp",
+      "bmp",
+      "svg",
+      "ico",
+      "tiff",
+    ];
+    const urlWithoutParams = url.split("?")[0].split("#")[0];
     const matches = urlWithoutParams.match(/\.([a-z0-9]+)$/i);
-    
+
     if (matches && matches[1]) {
       const ext = matches[1].toLowerCase();
       if (validExts.includes(ext)) return ext;
@@ -186,73 +203,79 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function downloadImage(imgElement, retryCount = 0) {
     const maxRetries = 2;
     const src = imgElement.src;
-    
+
     // Handle SVG files differently
-    if (src.toLowerCase().endsWith('.svg') || src.includes('data:image/svg+xml')) {
+    if (
+      src.toLowerCase().endsWith(".svg") ||
+      src.includes("data:image/svg+xml")
+    ) {
       try {
         const response = await fetch(src);
         const svgText = await response.text();
         return {
-          blob: new Blob([svgText], { type: 'image/svg+xml' }),
-          type: 'fetch',
-          src
+          blob: new Blob([svgText], { type: "image/svg+xml" }),
+          type: "fetch",
+          src,
         };
       } catch (error) {
-        console.error('SVG download error:', error);
+        console.error("SVG download error:", error);
         if (retryCount < maxRetries) {
-          console.log(`Retrying SVG download (${retryCount + 1}/${maxRetries})...`);
+          console.log(
+            `Retrying SVG download (${retryCount + 1}/${maxRetries})...`
+          );
           return downloadImage(imgElement, retryCount + 1);
         }
         throw error;
       }
     }
-    
+
     try {
       if (imgElement.complete && imgElement.naturalWidth > 0) {
-        const canvas = document.createElement('canvas');
+        const canvas = document.createElement("canvas");
         canvas.width = imgElement.naturalWidth;
         canvas.height = imgElement.naturalHeight;
-        const ctx = canvas.getContext('2d');
-        
+        const ctx = canvas.getContext("2d");
+
         try {
           ctx.drawImage(imgElement, 0, 0);
           return await new Promise((resolve) => {
             canvas.toBlob((blob) => {
               if (blob) {
-                resolve({ blob, type: 'canvas', src });
+                resolve({ blob, type: "canvas", src });
               } else {
-                throw new Error('Failed to convert image to blob');
+                throw new Error("Failed to convert image to blob");
               }
-            }, 'image/png');
+            }, "image/png");
           });
         } catch (canvasError) {
-          console.log('Canvas method failed, trying FETCH:', canvasError);
+          console.log("Canvas method failed, trying FETCH:", canvasError);
         }
       }
-      
+
       try {
         const response = await fetch(src, {
-          mode: 'cors',
-          credentials: 'omit',
-          referrerPolicy: 'no-referrer'
+          mode: "cors",
+          credentials: "omit",
+          referrerPolicy: "no-referrer",
         });
-        
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
+
+        if (!response.ok)
+          throw new Error(`HTTP error! status: ${response.status}`);
+
         const blob = await response.blob();
-        return { blob, type: 'fetch', src };
+        return { blob, type: "fetch", src };
       } catch (fetchError) {
-        console.log('FETCH with CORS failed:', fetchError);
-        
+        console.log("FETCH with CORS failed:", fetchError);
+
         if (retryCount < maxRetries) {
           console.log(`Retrying (${retryCount + 1}/${maxRetries})...`);
           return downloadImage(imgElement, retryCount + 1);
         } else {
-          throw new Error('Failed to download image after multiple attempts');
+          throw new Error("Failed to download image after multiple attempts");
         }
       }
     } catch (error) {
-      console.error('Image download error:', error);
+      console.error("Image download error:", error);
       throw error;
     }
   }
@@ -260,33 +283,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   function getSafeFileName(src, blobType) {
     try {
       const urlObj = new URL(src);
-      const pathParts = urlObj.pathname.split('/');
-      let fileName = pathParts.pop() || 'image';
-      
+      const pathParts = urlObj.pathname.split("/");
+      let fileName = pathParts.pop() || "image";
+
       // Handle SVG files specifically
-      if (src.toLowerCase().endsWith('.svg')) {
-        if (!fileName.toLowerCase().endsWith('.svg')) {
-          fileName = fileName.split('.')[0] + '.svg';
+      if (src.toLowerCase().endsWith(".svg")) {
+        if (!fileName.toLowerCase().endsWith(".svg")) {
+          fileName = fileName.split(".")[0] + ".svg";
         }
-        return fileName.replace(/[^a-z0-9\-_.]/gi, '_').toLowerCase();
+        return fileName.replace(/[^a-z0-9\-_.]/gi, "_").toLowerCase();
       }
-      
-      const originalExt = src.split('.').pop().toLowerCase().split(/[?#]/)[0];
-      const validExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
-      
+
+      const originalExt = src.split(".").pop().toLowerCase().split(/[?#]/)[0];
+      const validExts = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"];
+
       if (validExts.includes(originalExt)) {
-        if (!fileName.includes('.')) {
+        if (!fileName.includes(".")) {
           fileName += `.${originalExt}`;
         } else {
-          const parts = fileName.split('.');
+          const parts = fileName.split(".");
           const ext = parts.pop();
-          fileName = parts.join('.').replace(/[^a-z0-9\-_]/gi, '_') + '.' + ext;
+          fileName = parts.join(".").replace(/[^a-z0-9\-_]/gi, "_") + "." + ext;
         }
       } else {
-        const blobExt = blobType.split('/')[1] || 'png';
-        fileName = fileName.replace(/[^a-z0-9\-_]/gi, '_') + '.' + blobExt;
+        const blobExt = blobType.split("/")[1] || "png";
+        fileName = fileName.replace(/[^a-z0-9\-_]/gi, "_") + "." + blobExt;
       }
-      
+
       return fileName.toLowerCase();
     } catch (e) {
       return `image_${Date.now()}.png`;
@@ -315,10 +338,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div style="display: flex; align-items: flex-start; gap: 10px;">
         <svg width="24" height="24" viewBox="0 0 24 24" style="flex-shrink: 0;">
           <path fill="${type === "success" ? "#2ecc71" : "#e74c3c"}" 
-                d="${type === "success" ? "M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" : "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"}"/>
+                d="${
+                  type === "success"
+                    ? "M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"
+                    : "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
+                }"/>
         </svg>
         <div>
-          <div style="font-weight: bold; margin-bottom: 5px; color: ${type === "success" ? "#2ecc71" : "#e74c3c"}">
+          <div style="font-weight: bold; margin-bottom: 5px; color: ${
+            type === "success" ? "#2ecc71" : "#e74c3c"
+          }">
             ${title}
           </div>
           <div style="margin-bottom: 3px; font-size: 14px;">${message}</div>
@@ -416,13 +445,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Function to update image count display
   function updateImageCount() {
     const totalImages = container.querySelectorAll(".image-item").length;
-    const selectedImages = container.querySelectorAll(".image-item input[type=checkbox]:checked").length;
-    document.getElementById("image-count").textContent = `${selectedImages} صورة محددة من ${totalImages} صورة`;
+    const selectedImages = container.querySelectorAll(
+      ".image-item input[type=checkbox]:checked"
+    ).length;
+    document.getElementById(
+      "image-count"
+    ).textContent = `${selectedImages} صورة محددة من ${totalImages} صورة`;
   }
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
   async function fetchImagesFromPage() {
+    // إذا كان حفظ الصور معطلاً، لا تحفظ الصور
+    if (!saveOnReloadCheckbox.checked) {
+      localStorage.removeItem('downloadedImages');
+    }
+    
     return chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: () => {
@@ -557,15 +595,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         function removeNetNetBadges() {
-          document.querySelectorAll('[data-netnet-wrapper="true"]').forEach((wrapper) => {
-            const img = wrapper.querySelector('img:not([style*="display: none"])');
-            if (img && wrapper.parentNode) {
-              wrapper.parentNode.insertBefore(img, wrapper);
-            }
-            if (wrapper.parentNode) {
-              wrapper.parentNode.removeChild(wrapper);
-            }
-          });
+          document
+            .querySelectorAll('[data-netnet-wrapper="true"]')
+            .forEach((wrapper) => {
+              const img = wrapper.querySelector(
+                'img:not([style*="display: none"])'
+              );
+              if (img && wrapper.parentNode) {
+                wrapper.parentNode.insertBefore(img, wrapper);
+              }
+              if (wrapper.parentNode) {
+                wrapper.parentNode.removeChild(wrapper);
+              }
+            });
 
           const style = document.getElementById("netnet-badge-style");
           if (style && style.parentNode) {
@@ -584,10 +626,16 @@ document.addEventListener("DOMContentLoaded", async () => {
           if ((!src || src.trim() === "") && img.hasAttribute("data-src")) {
             src = img.getAttribute("data-src");
           }
-          if ((!src || src.trim() === "") && img.hasAttribute("data-lazy-src")) {
+          if (
+            (!src || src.trim() === "") &&
+            img.hasAttribute("data-lazy-src")
+          ) {
             src = img.getAttribute("data-lazy-src");
           }
-          if ((!src || src.trim() === "") && img.hasAttribute("data-original")) {
+          if (
+            (!src || src.trim() === "") &&
+            img.hasAttribute("data-original")
+          ) {
             src = img.getAttribute("data-original");
           }
 
@@ -610,7 +658,11 @@ document.addEventListener("DOMContentLoaded", async () => {
               src = src.replace(/^["']|["']$/g, "");
 
               if (src.startsWith("http")) {
-                const title = (el.title || el.getAttribute("aria-label") || "").trim();
+                const title = (
+                  el.title ||
+                  el.getAttribute("aria-label") ||
+                  ""
+                ).trim();
                 const fallbackName = src.split("/").pop().split("?")[0];
                 results.push({
                   src,
@@ -692,7 +744,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const downloadBtn = div.querySelector(".download-single-btn");
       downloadBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        
+
         const originalBtnHTML = downloadBtn.innerHTML;
         downloadBtn.innerHTML = `
           <svg viewBox="0 0 24 24" width="16" height="16" class="spinner">
@@ -717,10 +769,12 @@ document.addEventListener("DOMContentLoaded", async () => {
           const { blob, type } = await downloadImage(img);
           const fileSize = (blob.size / 1024).toFixed(2);
           const fileName = getSafeFileName(src, blob.type);
-          
+
           // إظهار رسالة تأكيد إضافية لملفات SVG
-          if (fileName.toLowerCase().endsWith('.svg')) {
-            const svgConfirmed = await customConfirm("هذه صورة SVG. هل تريد تنزيلها كملف SVG؟");
+          if (fileName.toLowerCase().endsWith(".svg")) {
+            const svgConfirmed = await customConfirm(
+              "هذه صورة SVG. هل تريد تنزيلها كملف SVG؟"
+            );
             if (!svgConfirmed) {
               showNotification(
                 "info",
@@ -731,7 +785,7 @@ document.addEventListener("DOMContentLoaded", async () => {
               return;
             }
           }
-          
+
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
@@ -748,7 +802,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             "success",
             "تم التنزيل بنجاح",
             `${fileName} (${fileSize} KB)`,
-            `تم التنزيل باستخدام: ${type === 'canvas' ? 'عنصر الصورة مباشرة' : 'رابط الصورة'}`
+            `تم التنزيل باستخدام: ${
+              type === "canvas" ? "عنصر الصورة مباشرة" : "رابط الصورة"
+            }`
           );
         } catch (error) {
           showNotification(
@@ -829,182 +885,122 @@ document.addEventListener("DOMContentLoaded", async () => {
         allImages = allImages.concat(pendingImages);
         showImages(pendingImages);
         pendingImages = [];
+
+        // حفظ الصور الجديدة في localStorage إذا كان الخيار مفعلاً
+        if (saveOnReloadCheckbox.checked) {
+          localStorage.setItem("downloadedImages", JSON.stringify(allImages));
+        }
       }
     }, 1500);
   }
 
+  // تحميل الصور المحفوظة عند بدء التشغيل إذا كان الخيار مفعلاً
+  const savedImages = saveOnReloadCheckbox.checked ? localStorage.getItem("downloadedImages") : null;
+  if (savedImages) {
+    allImages = JSON.parse(savedImages);
+    showImages(allImages);
+  }
+
   const injectionResults = await fetchImagesFromPage();
-if (!injectionResults || injectionResults.length === 0) {
-    container.innerHTML =
-      '<p class="xxshadow">لا توجد صور أو فشل تحميل الصور.</p>';
-    document.getElementById("image-count").textContent = "0 صورة محددة من 0 صورة";
-    return;
-}
-allImages = injectionResults[0].result || [];
-if (allImages.length === 0) {
-    container.innerHTML = "<p>لا توجد صور!</p>";
-    document.getElementById("image-count").textContent = "0 صورة محددة من 0 صورة";
-    return;
-}
-showImages(allImages);
-observeNewImages();
-
-downloadBtn.addEventListener("click", async () => {
-    const checkboxes = document.querySelectorAll(
-      "input[type=checkbox]:checked"
-    );
-    if (checkboxes.length === 0) {
-      alert("الرجاء تحديد الصور أولاً");
-      return;
+  if (!injectionResults || injectionResults.length === 0) {
+    if (allImages.length === 0) {
+      container.innerHTML = '<p class="xxshadow">لا توجد صور أو فشل تحميل الصور.</p>';
+      document.getElementById("image-count").textContent = "0 صورة محددة من 0 صورة";
+      setTimeout(() => {
+        const xxshadowElement = document.querySelector(".xxshadow");
+        if (xxshadowElement) {
+          xxshadowElement.style.display = "none";
+        }
+      }, 500);
     }
+    return;
+  }
 
-    const totalImages = checkboxes.length;
+  // دمج الصور الجديدة مع المحفوظة
+  const newImages = injectionResults[0].result || [];
+  const existingSrcs = new Set(allImages.map((img) => img.src));
+  const uniqueNew = newImages.filter((img) => !existingSrcs.has(img.src));
+
+  if (uniqueNew.length > 0) {
+    allImages = allImages.concat(uniqueNew);
+    showImages(uniqueNew);
+    if (saveOnReloadCheckbox.checked) {
+      localStorage.setItem("downloadedImages", JSON.stringify(allImages));
+    }
+  }
+
+  observeNewImages();
+
+  // حدث النقر على زر إزالة الصور المحفوظة
+  clearCacheBtn.addEventListener("click", async () => {
     const confirmed = await customConfirm(
-      `هل تريد تنزيل ${totalImages} صورة؟\n` +
-      `قد يستغرق هذا بعض الوقت حسب سرعة اتصالك بالإنترنت.`
+      "هل أنت متأكد أنك تريد حذف جميع الصور المحفوظة؟ سيتم جلبها من جديد عند الحاجة."
     );
 
-    if (!confirmed) return;
+    if (confirmed) {
+      // حذف البيانات المحفوظة
+      localStorage.removeItem("downloadedImages");
 
-    const progressBar = showProgressBar();
-    const cancelBtn = document.getElementById('netnet-cancel-download');
-    let cancelled = false;
-    
-    cancelBtn.onclick = () => {
-      cancelled = true;
-      hideProgressBar();
-      showNotification(
-        "error",
-        "تم الإلغاء",
-        "تم إلغاء عملية التنزيل",
-        `تم تنزيل ${downloadedCount} من ${totalImages} صور`
-      );
-    };
+      // إفراغ القائمة الحالية
+      container.innerHTML = '<p class="xxshadow">جاري إعادة جلب الصور...</p>';
+      setTimeout(() => {
+        const xxshadowElement = document.querySelector(".xxshadow");
+        if (xxshadowElement) {
+          xxshadowElement.style.display = "none";
+        }
+      }, 500);
+      allImages = [];
+      pendingImages = [];
+      imageHashes.clear();
 
-    const zip = new JSZip();
-    let downloadedCount = 0;
-    const txtLines = [];
-    const failedDownloads = [];
-
-    if (includeTxtCheckbox.checked) {
-      txtLines.push("=== روابط الصور التي تم تنزيلها ===");
-      txtLines.push(`تم تنزيل ${totalImages} صور من ${window.location.href}`);
-      txtLines.push("===========================");
-      txtLines.push("");
-    }
-
-    const processImage = async (checkbox, index) => {
-      if (cancelled) return;
-      
-      const imageItem = checkbox.closest('.image-item');
-      const imgElement = imageItem.querySelector('img');
-      const src = imgElement.src;
-      const title = (checkbox.dataset.title || "").trim();
-      
+      // إعادة جلب الصور من الصفحة
       try {
-        updateProgressBar((index / totalImages) * 0.9, index + 1, totalImages, `جاري تنزيل الصورة ${index + 1} من ${totalImages}`);
-        
-        const { blob, type } = await downloadImage(imgElement);
-        const fileName = getSafeFileName(src, blob.type);
-        
-        zip.file(fileName, blob);
-        if (includeTxtCheckbox.checked) {
-          txtLines.push(`${fileName}: ${src}`);
+        const injectionResults = await fetchImagesFromPage();
+        allImages = injectionResults[0].result || [];
+
+        if (allImages.length === 0) {
+          container.innerHTML = '<p class="xxshadow">لا توجد صور!</p>';
+        } else {
+          showImages(allImages);
+          if (saveOnReloadCheckbox.checked) {
+            localStorage.setItem("downloadedImages", JSON.stringify(allImages));
+          }
         }
-        
-        downloadedCount++;
-        updateProgressBar(((index + 1) / totalImages) * 0.9, index + 1, totalImages);
-      } catch (err) {
-        console.error("Error downloading image:", src, err);
-        failedDownloads.push(src);
-        if (includeTxtCheckbox.checked) {
-          txtLines.push(`[FAILED]: ${src}`);
-        }
+      } catch (error) {
+        console.error("Error fetching images:", error);
+        container.innerHTML = '<p class="xxshadow">حدث خطأ أثناء جلب الصور</p>';
+        setTimeout(() => {
+          const xxshadowElement = document.querySelector(".xxshadow");
+          if (xxshadowElement) {
+            xxshadowElement.style.display = "none";
+          }
+        }, 500);
       }
-    };
 
-    const batchSize = 5;
-    for (let i = 0; i < checkboxes.length; i += batchSize) {
-      if (cancelled) break;
-      
-      const batch = Array.from(checkboxes).slice(i, i + batchSize);
-      await Promise.all(batch.map((cb, idx) => processImage(cb, i + idx)));
-    }
-
-    if (cancelled) return;
-
-    if (includeTxtCheckbox.checked) {
-      if (failedDownloads.length > 0) {
-        txtLines.push("\n=== الصور التي فشل تنزيلها ===");
-        txtLines.push(...failedDownloads);
-      }
-      zip.file("image_links.txt", txtLines.join("\n"));
-    }
-
-    updateProgressBar(0.95, totalImages, totalImages, "جاري إنشاء ملف ZIP...");
-    const content = await zip.generateAsync({ type: "blob" }, (metadata) => {
-      updateProgressBar(0.95 + (metadata.percent / 100) * 0.05, totalImages, totalImages);
-    });
-
-    updateProgressBar(1, totalImages, totalImages, "جاري التنزيل...");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(content);
-    a.download = `downloaded_images_${new Date().getTime()}.zip`;
-    document.body.appendChild(a);
-    a.click();
-
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(a.href);
-      hideProgressBar();
-      
+      // إظهار إشعار بالنجاح
       showNotification(
         "success",
-        "تم التنزيل بنجاح",
-        `تم تنزيل ${downloadedCount} من ${totalImages} صور`,
-        failedDownloads.length > 0 ? `${failedDownloads.length} صور فشل تنزيلها` : "تم تنزيل جميع الصور بنجاح"
+        "تم التحديث",
+        "تمت إزالة الصور المحفوظة",
+        "تم جلب الصور الجديدة بنجاح"
       );
-    }, 100);
+    }
   });
 
-selectAllBtn.addEventListener("click", () => {
-  document
-    .querySelectorAll(".image-item input[type=checkbox]")
-    .forEach((cb) => {
-      if (
-        !filterDuplicatesCheckbox.checked ||
-        cb.closest(".image-item").style.display !== "none"
-      ) {
-        cb.checked = true;
-        cb.closest(".image-item").classList.add("zoom1");
-      }
-    });
-  updateImageCount();
-});
-
-deselectAllBtn.addEventListener("click", () => {
-  document
-    .querySelectorAll(".image-item input[type=checkbox]")
-    .forEach((cb) => {
-      cb.checked = false;
-      cb.closest(".image-item").classList.remove("zoom1");
-    });
-  updateImageCount();
-});
-
-  searchInput.addEventListener("input", () => {
-    const term = searchInput.value.toLowerCase();
-    document.querySelectorAll(".image-item").forEach((item) => {
-      const title = (
-        item.querySelector("input[type=checkbox]").dataset.title || ""
-      ).toLowerCase();
-      item.style.display = title.includes(term) ? "" : "none";
-    });
-    updateImageCount();
+  // حدث تغيير حالة حفظ الصور بعد التحديث
+  saveOnReloadCheckbox.addEventListener("change", function() {
+    localStorage.setItem('saveImagesEnabled', this.checked);
+    if (!this.checked) {
+      localStorage.removeItem('downloadedImages');
+    } else if (allImages.length > 0) {
+      localStorage.setItem('downloadedImages', JSON.stringify(allImages));
+    }
   });
 
-  filterDuplicatesCheckbox.addEventListener("change", () => {
-    const filterEnabled = filterDuplicatesCheckbox.checked;
+  // حدث تغيير حالة تصفية المكررات
+  filterDuplicatesCheckbox.addEventListener("change", function() {
+    localStorage.setItem('filterDuplicates', this.checked);
+    const filterEnabled = this.checked;
 
     if (filterEnabled) {
       imageHashes.forEach((images, hash) => {
@@ -1047,6 +1043,175 @@ deselectAllBtn.addEventListener("click", () => {
         });
       });
     }
+    updateImageCount();
+  });
+
+  downloadBtn.addEventListener("click", async () => {
+    const checkboxes = document.querySelectorAll(
+      "input[type=checkbox]:checked"
+    );
+    if (checkboxes.length === 0) {
+      alert("الرجاء تحديد الصور أولاً");
+      return;
+    }
+
+    const totalImages = checkboxes.length;
+    const confirmed = await customConfirm(
+      `هل تريد تنزيل ${totalImages} صورة؟\n` +
+        `قد يستغرق هذا بعض الوقت حسب سرعة اتصالك بالإنترنت.`
+    );
+
+    if (!confirmed) return;
+
+    const progressBar = showProgressBar();
+    const cancelBtn = document.getElementById("netnet-cancel-download");
+    let cancelled = false;
+
+    cancelBtn.onclick = () => {
+      cancelled = true;
+      hideProgressBar();
+      showNotification(
+        "error",
+        "تم الإلغاء",
+        "تم إلغاء عملية التنزيل",
+        `تم تنزيل ${downloadedCount} من ${totalImages} صور`
+      );
+    };
+
+    const zip = new JSZip();
+    let downloadedCount = 0;
+    const txtLines = [];
+    const failedDownloads = [];
+
+    if (includeTxtCheckbox.checked) {
+      txtLines.push("=== روابط الصور التي تم تنزيلها ===");
+      txtLines.push(`تم تنزيل ${totalImages} صور من ${window.location.href}`);
+      txtLines.push("===========================");
+      txtLines.push("");
+    }
+
+    const processImage = async (checkbox, index) => {
+      if (cancelled) return;
+
+      const imageItem = checkbox.closest(".image-item");
+      const imgElement = imageItem.querySelector("img");
+      const src = imgElement.src;
+      const title = (checkbox.dataset.title || "").trim();
+
+      try {
+        updateProgressBar(
+          (index / totalImages) * 0.9,
+          index + 1,
+          totalImages,
+          `جاري تنزيل الصورة ${index + 1} من ${totalImages}`
+        );
+
+        const { blob, type } = await downloadImage(imgElement);
+        const fileName = getSafeFileName(src, blob.type);
+
+        zip.file(fileName, blob);
+        if (includeTxtCheckbox.checked) {
+          txtLines.push(`${fileName}: ${src}`);
+        }
+
+        downloadedCount++;
+        updateProgressBar(
+          ((index + 1) / totalImages) * 0.9,
+          index + 1,
+          totalImages
+        );
+      } catch (err) {
+        console.error("Error downloading image:", src, err);
+        failedDownloads.push(src);
+        if (includeTxtCheckbox.checked) {
+          txtLines.push(`[FAILED]: ${src}`);
+        }
+      }
+    };
+
+    const batchSize = 5;
+    for (let i = 0; i < checkboxes.length; i += batchSize) {
+      if (cancelled) break;
+
+      const batch = Array.from(checkboxes).slice(i, i + batchSize);
+      await Promise.all(batch.map((cb, idx) => processImage(cb, i + idx)));
+    }
+
+    if (cancelled) return;
+
+    if (includeTxtCheckbox.checked) {
+      if (failedDownloads.length > 0) {
+        txtLines.push("\n=== الصور التي فشل تنزيلها ===");
+        txtLines.push(...failedDownloads);
+      }
+      zip.file("image_links.txt", txtLines.join("\n"));
+    }
+
+    updateProgressBar(0.95, totalImages, totalImages, "جاري إنشاء ملف ZIP...");
+    const content = await zip.generateAsync({ type: "blob" }, (metadata) => {
+      updateProgressBar(
+        0.95 + (metadata.percent / 100) * 0.05,
+        totalImages,
+        totalImages
+      );
+    });
+
+    updateProgressBar(1, totalImages, totalImages, "جاري التنزيل...");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(content);
+    a.download = `downloaded_images_${new Date().getTime()}.zip`;
+    document.body.appendChild(a);
+    a.click();
+
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+      hideProgressBar();
+
+      showNotification(
+        "success",
+        "تم التنزيل بنجاح",
+        `تم تنزيل ${downloadedCount} من ${totalImages} صور`,
+        failedDownloads.length > 0
+          ? `${failedDownloads.length} صور فشل تنزيلها`
+          : "تم تنزيل جميع الصور بنجاح"
+      );
+    }, 100);
+  });
+
+  selectAllBtn.addEventListener("click", () => {
+    document
+      .querySelectorAll(".image-item input[type=checkbox]")
+      .forEach((cb) => {
+        if (
+          !filterDuplicatesCheckbox.checked ||
+          cb.closest(".image-item").style.display !== "none"
+        ) {
+          cb.checked = true;
+          cb.closest(".image-item").classList.add("zoom1");
+        }
+      });
+    updateImageCount();
+  });
+
+  deselectAllBtn.addEventListener("click", () => {
+    document
+      .querySelectorAll(".image-item input[type=checkbox]")
+      .forEach((cb) => {
+        cb.checked = false;
+        cb.closest(".image-item").classList.remove("zoom1");
+      });
+    updateImageCount();
+  });
+
+  searchInput.addEventListener("input", () => {
+    const term = searchInput.value.toLowerCase();
+    document.querySelectorAll(".image-item").forEach((item) => {
+      const title = (
+        item.querySelector("input[type=checkbox]").dataset.title || ""
+      ).toLowerCase();
+      item.style.display = title.includes(term) ? "" : "none";
+    });
     updateImageCount();
   });
 
