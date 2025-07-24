@@ -1,5 +1,5 @@
 body {
-    width: 555px;
+    /* width: 555px; */
     font-family: system-ui;
     padding: 5px 7px;
     font-size: 14px;
@@ -7,7 +7,9 @@ body {
     font-weight: 400;
     user-select: none;
     color: #495261;
-    height: 573px;
+    height: 100vh;
+    padding: 0;
+    margin: 0;
     /* transition: ease 0.2s; */
 }
 
@@ -32,7 +34,7 @@ name {
 no {
     display: block;
     margin: auto;
-    color: #cccccca4;
+    color: #ccccccc0;
     width: max-content;
     margin-top: 10px;
     margin-bottom: 10px;
@@ -44,6 +46,26 @@ hr {
     background: #3c4b5921;
     margin-right: 45px;
     margin-left: 0px;
+}
+
+.jon {
+    position: relative;
+    overflow: hidden;
+}
+.jon::before {
+    position: absolute;
+    content: '';
+    z-index: 5;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    cursor: no-drop;
+    background: #cccccc40;
+    /* backdrop-filter: blur(6px); */
+}
+.jon:hover:before {
+    background: #cccccc62;
 }
 
 body .xxshadow {
@@ -136,12 +158,12 @@ img {
 }
 
 #images-container {
-    max-height: 449px;
+    max-height: -webkit-fill-available;
     overflow-y: auto;
-    margin-bottom: 10px;
+    margin-bottom: 134px;
     flex-wrap: wrap;
     display: flex;
-    width: 500px;
+    width: 100%;
 }
 .image-item {
     position: relative;
@@ -149,7 +171,8 @@ img {
     align-items: center;
     justify-content: center;
     margin: 0;
-    width: 161.59px;
+    /* width: 161.59px; */
+    width: 177.59px;
     height: auto;
     border: none;
     overflow: hidden;
@@ -255,7 +278,7 @@ img {
     left: 10px;
     display: flex;
 }
-#download-btn {
+body .ccxxs {
     padding: 5px 14px;
     border-color: #0000;
     color: white;
@@ -264,15 +287,15 @@ img {
     background: linear-gradient(45deg, #ed6fe9, #92eafd);
     transition: ease 0.3s;
 }
-#download-btn:hover {
+.ccxxs:hover {
     box-shadow: 0px 1px 3px #6a57694d;
 }
-#download-btn:active {
+.ccxxs:active {
     /* opacity: .7; */
     transition: ease 0.1s;
     box-shadow: 0px 0px 0px #6a57694d;
 }
-#download-btn .ripple {
+.ccxxs .ripple {
     background: rgba(255, 255, 255, 0.253);
 }
 #load-more-container {
@@ -298,7 +321,8 @@ img {
 /* joker */
 .joker {
     display: flex;
-    height: 100%;
+    height: -webkit-fill-available;
+    padding: 16px;
 }
 .joker1 {
     position: relative;
@@ -346,6 +370,7 @@ img {
 .joker2 {
     position: relative;
     margin-left: 15px;
+    width: 100%;
 }
 .xxo {
     margin: 0;
@@ -474,6 +499,7 @@ body .zoom1 #zood {
 }
 
 body .xoox {
+    color: #0095ff;
     background: aliceblue;
 }
 body .xoox #sitt {
@@ -602,7 +628,7 @@ body .zoom-x .image-item {
   transition: all 0.3s ease;
 }
 
-#confirmOk {
+#confirmOk, #netnet-cancel-download {
     transition: ease 0.3s;
     padding: 8px 18px;
     /* background: #3498db; */
@@ -621,7 +647,7 @@ body .zoom-x .image-item {
     border-radius: 21px;
     cursor: pointer;
 }
-#confirmOk:active ,#confirmCancel:active {
+#confirmOk:active ,#confirmCancel:active ,#netnet-cancel-download:active {
     transition: ease 0.0s;
     transform: scale(0.95);
 }
@@ -640,7 +666,92 @@ body .zoom-x .image-item {
     border-radius: 25px;
 }
 .zssx {
+    transition: ease 0.4s;
     width: 31px;
     height: 31px;
     border-color: #0000;
+    border-radius: 25px;
+}
+.zssx:hover {
+    transition: ease 0.2s;
+    background: #3c4b5911;
+}
+
+.menu {
+    position: relative;
+    display: flex;
+    justify-content: center;
+}
+.menu-div {
+    position: absolute;
+    width: 168px;
+    bottom: 40px;
+    right: 0;
+    padding: 5px;
+    border-radius: 8px;
+    background: white;
+    z-index: 100;
+    display: none;
+    box-shadow: 0px 4px 14px #45546363;
+}
+.menuw {
+    display: block;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(20px);
+    box-shadow: 0px 0px 0px #45546363;
+    transition: opacity 0.2s ease, transform 0.4s ease;
+}
+.menuw.show {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    box-shadow: 0px 4px 14px #45546363;
+    transform: translateY(0);
+}
+body .nonew {
+    bottom: auto;
+    top: 40px;
+}
+.menu-div button {
+    transition: ease 0.4s;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    height: 37px;
+    padding: 0px 14px;
+    border-radius: 6px;
+    border: none;
+    background: #0000;
+    width: 100%;
+    justify-content: left;
+}
+.menu-div button:hover {
+    transition: ease 0.2s;
+    background: #3c4b5911;
+}
+
+.xxshadow {
+    position: absolute;
+    z-index: 50;
+    top: 100px;
+    left: 50%;
+    transform: translate(-50%);
+    padding: 8px 16px;
+    border-radius: 25px;
+    display: block;
+    background-color: #cccccc4b;
+}
+
+.jex-lang {
+    transition: ease 0.4s;
+    height: 37px;
+    padding: 0px 14px;
+    border-radius: 6px;
+    border: none;
+    background: #0000;
+}
+.jex-lang:hover {
+    transition: ease 0.2s;
+    background: #3c4b5911;
 }
