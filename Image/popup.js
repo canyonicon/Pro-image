@@ -153,29 +153,37 @@ document.addEventListener("DOMContentLoaded", async () => {
     return hash.toString(16);
   }
 
-  async function getActualImageType(blob) {
-    try {
-      const buffer = await blob.slice(0, 8).arrayBuffer();
-      const view = new DataView(buffer);
+async function getSafeFileName(src, blob) {
+  try {
+    const urlObj = new URL(src);
+    const pathParts = urlObj.pathname.split("/");
+    let fileName = pathParts.pop() || "image";
 
-      if (view.getUint32(0) === 0x89504e47) return "png";
-      if (view.getUint16(0) === 0xffd8) return "jpg";
-      if (view.getUint32(0) === 0x47494638) return "gif";
-      if (view.getUint32(0) === 0x52494646 && view.getUint32(4) === 0x57454250)
-        return "webp";
-      if (view.getUint16(0) === 0x424d) return "bmp";
-      if (view.getUint32(0) === 0x49492a00) return "tiff";
-      if (view.getUint32(0) === 0x4d4d002a) return "tiff";
+    // تحديد الامتداد الأصلي من الرابط
+    const originalExt = getOriginalExtension(src);
+    const validExts = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico", "tiff"];
 
-      const text = await blob.slice(0, 100).text();
-      if (text.trim().startsWith("<svg") || text.includes("<svg")) return "svg";
-      if (view.getUint16(0) === 0x0000 && view.getUint16(2) === 0x0001)
-        return "ico";
-    } catch (error) {
-      console.error("Error detecting image type:", error);
+    // إذا كان الرابط يحتوي على امتداد صالح
+    if (originalExt && validExts.includes(originalExt)) {
+      if (!fileName.includes(".")) {
+        fileName += `.${originalExt}`;
+      } else {
+        const parts = fileName.split(".");
+        const ext = parts.pop();
+        fileName = parts.join(".").replace(/[^a-z0-9\-_]/gi, "_") + "." + ext;
+      }
+    } else {
+      // إذا لم يكن هناك امتداد صالح في الرابط، استخدم نوع الملف الفعلي
+      const actualType = await getActualImageType(blob);
+      const blobExt = actualType || blob.type.split("/")[1] || "png";
+      fileName = fileName.replace(/[^a-z0-9\-_]/gi, "_") + "." + blobExt;
     }
-    return null;
+
+    return fileName.toLowerCase();
+  } catch (e) {
+    return `image_${Date.now()}.png`;
   }
+}
 
   function getOriginalExtension(url) {
     const validExts = [
@@ -1107,7 +1115,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         );
 
         const { blob, type } = await downloadImage(imgElement);
-        const fileName = getSafeFileName(src, blob.type);
+        const fileName = await getSafeFileName(src, blob); // استخدام الدالة المعدلة
+
+        // إذا كان الملف SVG، اطلب تأكيد المستخدم
+        if (fileName.toLowerCase().endsWith(".svg")) {
+          const svgConfirmed = await customConfirm(
+            "هذه صورة SVG. هل تريد إضافتها إلى ملف ZIP كملف SVG؟"
+          );
+          if (!svgConfirmed) {
+            showNotification(
+              "info",
+              "تم تخطي الصورة",
+              "لم يتم إضافة ملف SVG إلى ملف ZIP",
+              "تم تخطي الصورة بناءً على اختيار المستخدم"
+            );
+            return;
+          }
+        }
 
         zip.file(fileName, blob);
         if (includeTxtCheckbox.checked) {
