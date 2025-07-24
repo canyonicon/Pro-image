@@ -3,10 +3,28 @@
   "name": "SnapScraper",
   "version": "1.0",
   "description": "Download selected images from the page.",
-  "permissions": ["scripting", "activeTab", "tabs"],
+  "permissions": [
+    "scripting",
+    "activeTab",
+    "tabs",
+    "sidePanel",
+    "downloads"
+  ],
   "host_permissions": ["<all_urls>"],
   "action": {
-    "default_popup": "popup.html"
+    "default_icon": {
+      "16": "image/download (1).png",
+      "32": "image/download (1).png",
+      "48": "image/download (1).png",
+      "128": "image/download (1).png"
+    },
+    "default_title": "SnapScraper"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
