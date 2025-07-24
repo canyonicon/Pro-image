@@ -1,4 +1,9 @@
-// background.js
+// 1. افتح اللوحة الجانبية عند النقر على الأيقونة
+chrome.action.onClicked.addListener((tab) => {
+  chrome.sidePanel.open({ windowId: tab.windowId });
+});
+
+// 2. معالجة تنزيل الصور (اختياري)
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "download") {
     chrome.downloads.download(
@@ -17,6 +22,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
       }
     );
-    return true; // Important for async response
+    return true;
   }
 });
