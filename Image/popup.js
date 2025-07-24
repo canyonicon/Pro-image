@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div style="height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden;">
         <div id="netnet-progress-bar-inner" style="height: 100%; width: 0%; background: #3498db; transition: width 0.3s;"></div>
       </div>
-      <button id="netnet-cancel-download" style="margin-top: 10px; padding: 5px 10px; background: #e74c3c; color: white; border: none; border-radius: 3px; cursor: pointer;">إلغاء التنزيل</button>
+      <button id="netnet-cancel-download">Cancel</button>
     `;
 
     document.body.appendChild(progressBar);
@@ -942,7 +942,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       localStorage.removeItem("downloadedImages");
 
       // إفراغ القائمة الحالية
-      container.innerHTML = '<p class="xxshadow">جاري إعادة جلب الصور...</p>';
+      container.innerHTML = '<p class="xxshadow">Retrieving images...</p>';
       setTimeout(() => {
         const xxshadowElement = document.querySelector(".xxshadow");
         if (xxshadowElement) {
@@ -1058,7 +1058,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const totalImages = checkboxes.length;
     const confirmed = await customConfirm(
       `هل تريد تنزيل ${totalImages} صورة؟\n` +
-        `قد يستغرق هذا بعض الوقت حسب سرعة اتصالك بالإنترنت.`
+        `قد يستغرق هذا بعض الوقت حسب عدد الصور`
     );
 
     if (!confirmed) return;
@@ -1215,41 +1215,50 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateImageCount();
   });
 
-  let scrollInterval = null;
-  let scrollSpeed = 100;
+let scrollInterval = null;
+let scrollSpeed = 100;
 
-  const scrollUpBtn = document.getElementById("scroll-up");
-  const scrollDownBtn = document.getElementById("scroll-down");
-  const scrollSpeedSelect = document.getElementById("scroll-speed");
+const scrollUpBtn = document.getElementById("scroll-up");
+const scrollDownBtn = document.getElementById("scroll-down");
+const scrollSpeedSelect = document.getElementById("scroll-speed");
 
-  scrollSpeedSelect.addEventListener("change", function () {
-    scrollSpeed = parseInt(this.value);
-  });
+// تحميل سرعة التمرير المحفوظة
+const savedScrollSpeed = localStorage.getItem("scrollSpeed");
+if (savedScrollSpeed) {
+  scrollSpeedSelect.value = savedScrollSpeed;
+  scrollSpeed = parseInt(savedScrollSpeed);
+}
 
-  function startScroll(direction) {
+scrollSpeedSelect.addEventListener("change", function () {
+  scrollSpeed = parseInt(this.value);
+  // حفظ قيمة السرعة في localStorage
+  localStorage.setItem("scrollSpeed", this.value);
+});
+
+function startScroll(direction) {
+  stopScroll();
+
+  const activeBtn = direction === "up" ? scrollUpBtn : scrollDownBtn;
+  const otherBtn = direction === "up" ? scrollDownBtn : scrollUpBtn;
+
+  if (activeBtn.classList.contains("zoom")) {
+    activeBtn.classList.remove("zoom");
     stopScroll();
+    return;
+  } else {
+    activeBtn.classList.add("zoom");
+    otherBtn.classList.remove("zoom");
+  }
 
-    const activeBtn = direction === "up" ? scrollUpBtn : scrollDownBtn;
-    const otherBtn = direction === "up" ? scrollDownBtn : scrollUpBtn;
-
-    if (activeBtn.classList.contains("zoom")) {
-      activeBtn.classList.remove("zoom");
-      stopScroll();
-      return;
-    } else {
-      activeBtn.classList.add("zoom");
-      otherBtn.classList.remove("zoom");
-    }
-
-    scrollInterval = setInterval(() => {
-      chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: (dir, speed) => {
-          window.scrollBy(0, dir === "up" ? -speed : speed);
-        },
-        args: [direction, scrollSpeed],
-      });
-    }, 100);
+  scrollInterval = setInterval(() => {
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (dir, speed) => {
+        window.scrollBy(0, dir === "up" ? -speed : speed);
+      },
+      args: [direction, scrollSpeed],
+    });
+  }, 100);
   }
 
   function stopScroll() {
