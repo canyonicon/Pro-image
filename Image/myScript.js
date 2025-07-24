@@ -50,27 +50,27 @@ document.querySelectorAll(".close-btn").forEach((closeBtn) => {
 
 
 
-document.addEventListener("DOMContentLoaded", async () => {
-  const checkbox = document.getElementById("toggleVex");
+// document.addEventListener("DOMContentLoaded", async () => {
+//   const checkbox = document.getElementById("toggleVex");
 
-  // عند تحميل الصفحة: تحقق من القيمة المخزنة في localStorage
-  window.addEventListener("DOMContentLoaded", () => {
-    const isVexEnabled = localStorage.getItem("vexEnabled") === "true";
-    checkbox.checked = isVexEnabled;
-    document.body.id = isVexEnabled ? "vex" : "";
-  });
+//   // عند تحميل الصفحة: تحقق من القيمة المخزنة في localStorage
+//   window.addEventListener("DOMContentLoaded", () => {
+//     const isVexEnabled = localStorage.getItem("vexEnabled") === "true";
+//     checkbox.checked = isVexEnabled;
+//     document.body.id = isVexEnabled ? "vex" : "";
+//   });
 
-  // عند النقر على الـ checkbox: أضف أو أزل id وحدث localStorage
-  checkbox.addEventListener("change", () => {
-    if (checkbox.checked) {
-      document.body.id = "vex";
-      localStorage.setItem("vexEnabled", "true");
-    } else {
-      document.body.removeAttribute("id");
-      localStorage.setItem("vexEnabled", "false");
-    }
-  });
-});
+//   // عند النقر على الـ checkbox: أضف أو أزل id وحدث localStorage
+//   checkbox.addEventListener("change", () => {
+//     if (checkbox.checked) {
+//       document.body.id = "vex";
+//       localStorage.setItem("vexEnabled", "true");
+//     } else {
+//       document.body.removeAttribute("id");
+//       localStorage.setItem("vexEnabled", "false");
+//     }
+//   });
+// });
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -97,23 +97,99 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 document.addEventListener("DOMContentLoaded", () => {
-const checkbox = document.getElementById("theme-toggle");
-const body = document.body;
+  const checkbox = document.getElementById("theme-toggle");
+  const body = document.body;
 
-// استرجاع الوضع من localStorage
-if (localStorage.getItem("theme") === "dark") {
-  body.classList.add("dark-mode");
-  checkbox.checked = true;
-}
+  // التحقق من إعدادات المتصفح للوضع المظلم
+  const prefersDarkMode =
+    window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-checkbox.addEventListener("change", () => {
-  if (checkbox.checked) {
+  // استرجاع الوضع من localStorage أو استخدام إعدادات المتصفح
+  const savedTheme = localStorage.getItem("theme");
+  const initialTheme = savedTheme
+    ? savedTheme
+    : prefersDarkMode
+    ? "dark"
+    : "light";
+
+  if (initialTheme === "dark") {
     body.classList.add("dark-mode");
-    localStorage.setItem("theme", "dark");
-  } else {
-    body.classList.remove("dark-mode");
-    localStorage.setItem("theme", "light");
+    checkbox.checked = true;
   }
-});
+
+  // الاستماع لتغير إعدادات النظام
+  window
+    .matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", (e) => {
+      const newColorScheme = e.matches ? "dark" : "light";
+      if (!savedTheme) {
+        // فقط إذا لم يتم اختيار وضع يدوي
+        body.classList.toggle("dark-mode", e.matches);
+        checkbox.checked = e.matches;
+      }
+    });
+
+  checkbox.addEventListener("change", () => {
+    if (checkbox.checked) {
+      body.classList.add("dark-mode");
+      localStorage.setItem("theme", "dark");
+    } else {
+      body.classList.remove("dark-mode");
+      localStorage.setItem("theme", "light");
+    }
+  });
 });
 
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  const buttons = document.querySelectorAll(".toggleBtn");
+
+  let activeMenu = null;
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const menuId = btn.getAttribute("data-menu");
+      const menu = document.getElementById(menuId);
+
+      if (activeMenu && activeMenu !== menu) {
+        hideMenu(activeMenu);
+      }
+
+      if (menu.classList.contains("show")) {
+        hideMenu(menu);
+        activeMenu = null;
+      } else {
+        showMenu(menu);
+        activeMenu = menu;
+      }
+    });
+  });
+
+  function showMenu(menu) {
+    menu.classList.add("show");
+  }
+
+  function hideMenu(menu) {
+    menu.classList.remove("show");
+  }
+
+  function hideActiveMenuOnClickOutside(event) {
+    if (activeMenu) {
+      let clickedOnButton = false;
+      buttons.forEach((btn) => {
+        if (btn.contains(event.target)) clickedOnButton = true;
+      });
+
+      if (!activeMenu.contains(event.target) && !clickedOnButton) {
+        hideMenu(activeMenu);
+        activeMenu = null;
+      }
+    }
+  }
+
+  document.addEventListener("click", hideActiveMenuOnClickOutside);
+  document.addEventListener("touchstart", hideActiveMenuOnClickOutside);
+});
