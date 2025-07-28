@@ -1,5 +1,5 @@
 body {
-    /* width: 555px; */
+    min-width: 548.44px;
     font-family: system-ui;
     padding: 5px 7px;
     font-size: 14px;
@@ -34,7 +34,7 @@ name {
 no {
     display: block;
     margin: auto;
-    color: #ccccccc0;
+    color: #cccccc;
     width: max-content;
     margin-top: 10px;
     margin-bottom: 10px;
@@ -110,6 +110,32 @@ input[type="checkbox"]:checked:active:before {
 }
 
 
+.vole {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.vole::before {
+    position: absolute;
+    content: '';
+    padding: 10px;
+    display: block;
+    border-radius: 60px;
+    background: #0000;
+    z-index: -1;
+    transition: ease 0.3s;
+}
+.vole:hover:before {
+    padding: 18px;
+    background: #0095ff26;
+}
+.vole:active:before {
+    padding: 18px;
+    background: #0095ff4f;
+}
+
+
 .Wave-cloud {
 position: relative;
 overflow: hidden;
@@ -149,12 +175,95 @@ img {
 }
 
 .logo {
+    position: relative;
     width: 30px;
     height: 30px;
 }
 .logo img {
     width: 100%;
     height: 100%;
+    cursor: pointer;
+}
+.name123 {
+    position: absolute;
+    z-index: 32;
+    font-weight: bold;
+    bottom: -6px;
+    left: 16px;
+    font-size: 10px;
+    padding: 2px 5px;
+    border-radius: 15px;
+    background: gold;
+    box-shadow: 0 0 0 2px #fff;
+    transform: scale(0.85);
+}
+.logo:hover .Vipsub {
+    transition: ease 0.3s;
+    opacity: 1;
+    margin-top: -0;
+    z-index: 30;
+}
+.Vipsub {
+    transition: ease 0.4s;
+    position: absolute;
+    opacity: 0;
+    margin-top: -30px;
+    z-index: -30;
+    top: 40px;
+    left: 3px;
+    background: white;
+    padding: 10px;
+    box-shadow: 0px 4px 14px #45546363;
+    border-radius: 10px;
+    width: 210px;
+    text-align: -webkit-center;
+}
+.Vipsub::before {
+    position: absolute;
+    cursor: pointer;
+    content: '';
+    top: -40px;
+    height: 40px;
+    width: 80px;
+    left: -12px;
+}
+xxc {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 600;
+    width: max-content;
+    margin: auto;
+}
+xxc::before {
+    position: absolute;
+    content: '';
+    background-color: #ffbc00;
+    bottom: -5px;
+    width: 100%;
+    padding: 0 6px;
+    height: 3px;
+    border-radius: 4px;
+}
+.Vipsub-div {
+    text-align: center;
+    margin: 11px 0;
+    margin-bottom: 16px;
+}
+.Vipsub-button {
+    transition: ease 0.2s;
+    height: 30px;
+    width: 100%;
+    border-radius: 8px;
+    background-color: #ffbc00;
+    border: none;
+}
+.Vipsub-button:hover {
+    background: #ffb100;
+}
+.Vipsub-button:active {
+    box-shadow: 0px 2px 5px #dfa300 inset;
 }
 
 #images-container {
@@ -180,6 +289,7 @@ img {
     background: #0000;
     /* outline: solid 1px #cccccc38; */
     padding: 2px 0;
+    max-height: 300px;
 }
 #zood {
     position: absolute;
@@ -216,10 +326,18 @@ img {
     width: 100%;
 }
 #saaas {
-    margin: 8px;
+    padding: 8px;
     font-size: 13px;
     display: block;
     overflow-wrap: break-word;
+    position: sticky;
+    bottom: 0;
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    max-height: 50px;
+    /* white-space: nowrap; */
 }
 
 .cci {
@@ -423,7 +541,7 @@ body .zoom:hover {
 }
 body .zoom1 #zood {
     /* box-shadow: 0 0 0 1px inset #fff, 0 0 0 3px inset #0085f7; */
-    box-shadow: 0 0 0 1px inset #fff, 0 0 0 3px inset #e7e7e7;
+    box-shadow: 0 0 0 1px inset #fff, 0 0 0 3px inset #cae4ff;
 }
 
 .sitteng {
@@ -500,7 +618,7 @@ body .zoom1 #zood {
 
 body .xoox {
     color: #0095ff;
-    background: aliceblue;
+    background: rgb(223, 239, 255);
 }
 body .xoox #sitt {
     transform: rotate(-90deg);
@@ -509,7 +627,10 @@ body .xoox svg {
     color: #0095ff;
 }
 body .xoox:hover {
-    background: rgb(223, 239, 255);
+    background: rgb(214, 234, 255);
+}
+body .xoox .ripple {
+    background: rgba(69, 162, 255, 0.123);
 }
 
 .jaxe {
@@ -535,6 +656,8 @@ body .xoox:hover {
     right: 8px;
     top: 8px;
     z-index: 10;
+    display: flex;
+    direction: rtl;
 }
 .image-controls button {
     height: 20px;
@@ -543,6 +666,7 @@ body .xoox:hover {
     background: #1d8aff;
     border: #0000;
     color: #ffffff;
+    margin-left: 5px;
 }
 .image-controls button:hover {
     background: #1a81f0;
