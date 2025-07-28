@@ -10,8 +10,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   const saveOnReloadCheckbox = document.getElementById("save-on-reload");
 
   // تحميل الإعدادات المحفوظة
-  filterDuplicatesCheckbox.checked = localStorage.getItem('filterDuplicates') === 'true';
-  saveOnReloadCheckbox.checked = localStorage.getItem('saveImagesEnabled') !== 'false';
+  filterDuplicatesCheckbox.checked =
+    localStorage.getItem("filterDuplicates") === "true";
+  saveOnReloadCheckbox.checked =
+    localStorage.getItem("saveImagesEnabled") !== "false";
 
   let allImages = [];
   let pendingImages = [];
@@ -103,7 +105,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div style="height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden;">
         <div id="netnet-progress-bar-inner" style="height: 100%; width: 0%; background: #3498db; transition: width 0.3s;"></div>
       </div>
-      <button id="netnet-cancel-download">Cancel</button>
+      <button id="netnet-cancel-download" style="margin-top: 10px;">Cancel</button>
     `;
 
     document.body.appendChild(progressBar);
@@ -153,36 +155,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     return hash.toString(16);
   }
 
-async function getSafeFileName(src, blob) {
+async function getActualImageType(blob) {
   try {
-    const urlObj = new URL(src);
-    const pathParts = urlObj.pathname.split("/");
-    let fileName = pathParts.pop() || "image";
+    const buffer = await blob.slice(0, 8).arrayBuffer();
+    const view = new DataView(buffer);
 
-    // تحديد الامتداد الأصلي من الرابط
-    const originalExt = getOriginalExtension(src);
-    const validExts = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico", "tiff"];
+    if (view.getUint32(0) === 0x89504e47) return "png";
+    if (view.getUint16(0) === 0xffd8) return "jpg";
+    if (view.getUint32(0) === 0x47494638) return "gif";
+    if (view.getUint32(0) === 0x52494646 && view.getUint32(4) === 0x57454250) return "webp";
+    if (view.getUint16(0) === 0x424d) return "bmp";
+    if (view.getUint32(0) === 0x49492a00) return "tiff";
+    if (view.getUint32(0) === 0x4d4d002a) return "tiff";
 
-    // إذا كان الرابط يحتوي على امتداد صالح
-    if (originalExt && validExts.includes(originalExt)) {
-      if (!fileName.includes(".")) {
-        fileName += `.${originalExt}`;
-      } else {
-        const parts = fileName.split(".");
-        const ext = parts.pop();
-        fileName = parts.join(".").replace(/[^a-z0-9\-_]/gi, "_") + "." + ext;
-      }
-    } else {
-      // إذا لم يكن هناك امتداد صالح في الرابط، استخدم نوع الملف الفعلي
-      const actualType = await getActualImageType(blob);
-      const blobExt = actualType || blob.type.split("/")[1] || "png";
-      fileName = fileName.replace(/[^a-z0-9\-_]/gi, "_") + "." + blobExt;
-    }
-
-    return fileName.toLowerCase();
-  } catch (e) {
-    return `image_${Date.now()}.png`;
+    const text = await blob.slice(0, 100).text();
+    if (text.trim().startsWith("<svg") || text.includes("<svg")) return "svg";
+    if (view.getUint16(0) === 0x0000 && view.getUint16(2) === 0x0001) return "ico";
+  } catch (error) {
+    console.error("Error detecting image type:", error);
   }
+  return null;
 }
 
   function getOriginalExtension(url) {
@@ -466,9 +458,9 @@ async function getSafeFileName(src, blob) {
   async function fetchImagesFromPage() {
     // إذا كان حفظ الصور معطلاً، لا تحفظ الصور
     if (!saveOnReloadCheckbox.checked) {
-      localStorage.removeItem('downloadedImages');
+      localStorage.removeItem("downloadedImages");
     }
-    
+
     return chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: () => {
@@ -521,7 +513,15 @@ async function getSafeFileName(src, blob) {
           document
             .querySelectorAll("img:not([data-ignore-netnet])")
             .forEach((img) => {
+              // استبعاد أيقونات favicon
+              const isFavicon = (img.width <= 16 && img.height <= 16) || 
+                               img.src.includes('favicon.ico') || 
+                               (img.parentNode && img.parentNode.tagName === 'LINK' && 
+                                img.parentNode.getAttribute('rel') && 
+                                img.parentNode.getAttribute('rel').includes('icon'));
+
               if (
+                !isFavicon &&
                 !img.closest(".netnet-image-wrapper") &&
                 img.offsetWidth > 0 &&
                 img.offsetHeight > 0 &&
@@ -573,8 +573,13 @@ async function getSafeFileName(src, blob) {
             if (bgImage && bgImage !== "none") {
               const urlMatch = bgImage.match(/url\(["']?(.*?)["']?\)/);
               if (urlMatch && urlMatch[1]) {
-                const src = urlMatch[1].replace(/^["']|["']$/g, "");
-                if (src.startsWith("http")) {
+                let src = urlMatch[1].replace(/^["']|["']$/g, "");
+                
+                // استبعاد أيقونات favicon في الخلفيات
+                const isFavicon = src.includes('favicon.ico') || 
+                                 src.toLowerCase().includes('favicon');
+
+                if (src.startsWith("http") && !isFavicon) {
                   const wrapper = document.createElement("div");
                   wrapper.className = "netnet-image-wrapper";
                   wrapper.dataset.netnetWrapper = "true";
@@ -647,7 +652,15 @@ async function getSafeFileName(src, blob) {
             src = img.getAttribute("data-original");
           }
 
-          if (src && src.startsWith("http")) {
+          // استبعاد أيقونات favicon
+          const isFavicon = (img.width <= 16 && img.height <= 16) || 
+                           src.includes('favicon.ico') || 
+                           src.toLowerCase().includes('favicon') ||
+                           (img.parentNode && img.parentNode.tagName === 'LINK' && 
+                            img.parentNode.getAttribute('rel') && 
+                            img.parentNode.getAttribute('rel').includes('icon'));
+
+          if (src && src.startsWith("http") && !isFavicon) {
             const title = (img.title || img.alt || "").trim();
             const fallbackName = src.split("/").pop().split("?")[0];
             results.push({ src, title: title || fallbackName });
@@ -665,7 +678,11 @@ async function getSafeFileName(src, blob) {
               let src = urlMatch[1];
               src = src.replace(/^["']|["']$/g, "");
 
-              if (src.startsWith("http")) {
+              // استبعاد أيقونات favicon في الخلفيات
+              const isFavicon = src.includes('favicon.ico') || 
+                               src.toLowerCase().includes('favicon');
+
+              if (src.startsWith("http") && !isFavicon) {
                 const title = (
                   el.title ||
                   el.getAttribute("aria-label") ||
@@ -731,6 +748,11 @@ async function getSafeFileName(src, blob) {
             <button class="download-single-btn" title="تنزيل هذه الصورة">
               <svg viewBox="0 0 24 24" width="16" height="16">
                 <path fill="currentColor" d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z" />
+              </svg>
+            </button>
+            <button class="preview-btn" title="عرض الصورة">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z" />
               </svg>
             </button>
           </div>
@@ -827,16 +849,40 @@ async function getSafeFileName(src, blob) {
         }
       });
 
-      const checkbox = div.querySelector("input[type=checkbox]");
-      checkbox.addEventListener("change", function () {
-        if (this.checked) {
+      // دالة لتطبيق/إزالة التكبير بناءً على حالة الـ checkbox
+      function toggleZoom(checkbox) {
+        const div = checkbox.closest(".image-item");
+        if (checkbox.checked) {
           div.classList.add("zoom1");
         } else {
           div.classList.remove("zoom1");
         }
+      }
+
+      // حدث النقر على عنصر الصورة
+      div.addEventListener("click", (e) => {
+        // تجنب التنفيذ عند النقر على عناصر التحكم أو الـ checkbox نفسه
+        if (
+          e.target.tagName === "INPUT" ||
+          e.target.closest(".image-controls")
+        ) {
+          return;
+        }
+
+        const checkbox = div.querySelector("input[type=checkbox]");
+        checkbox.checked = !checkbox.checked;
+        toggleZoom(checkbox);
         updateImageCount();
       });
 
+      // حدث التغيير على الـ checkbox
+      const checkbox = div.querySelector("input[type=checkbox]");
+      checkbox.addEventListener("change", function () {
+        toggleZoom(this);
+        updateImageCount();
+      });
+
+      // التهيئة الأولية
       if (checkbox.checked) {
         div.classList.add("zoom1");
       }
@@ -870,7 +916,12 @@ async function getSafeFileName(src, blob) {
         console.warn("Failed to load image:", src);
       };
 
-      div.addEventListener("dblclick", () => {
+      // div.addEventListener("dblclick", () => {
+      //   openImagePreview(src);
+      // });
+      const previewBtn = div.querySelector(".preview-btn");
+      previewBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         openImagePreview(src);
       });
     });
@@ -903,7 +954,9 @@ async function getSafeFileName(src, blob) {
   }
 
   // تحميل الصور المحفوظة عند بدء التشغيل إذا كان الخيار مفعلاً
-  const savedImages = saveOnReloadCheckbox.checked ? localStorage.getItem("downloadedImages") : null;
+  const savedImages = saveOnReloadCheckbox.checked
+    ? localStorage.getItem("downloadedImages")
+    : null;
   if (savedImages) {
     allImages = JSON.parse(savedImages);
     showImages(allImages);
@@ -912,8 +965,10 @@ async function getSafeFileName(src, blob) {
   const injectionResults = await fetchImagesFromPage();
   if (!injectionResults || injectionResults.length === 0) {
     if (allImages.length === 0) {
-      container.innerHTML = '<p class="xxshadow">لا توجد صور أو فشل تحميل الصور.</p>';
-      document.getElementById("image-count").textContent = "0 صورة محددة من 0 صورة";
+      container.innerHTML =
+        '<p class="xxshadow">لا توجد صور أو فشل تحميل الصور.</p>';
+      document.getElementById("image-count").textContent =
+        "0 صورة محددة من 0 صورة";
       setTimeout(() => {
         const xxshadowElement = document.querySelector(".xxshadow");
         if (xxshadowElement) {
@@ -996,18 +1051,18 @@ async function getSafeFileName(src, blob) {
   });
 
   // حدث تغيير حالة حفظ الصور بعد التحديث
-  saveOnReloadCheckbox.addEventListener("change", function() {
-    localStorage.setItem('saveImagesEnabled', this.checked);
+  saveOnReloadCheckbox.addEventListener("change", function () {
+    localStorage.setItem("saveImagesEnabled", this.checked);
     if (!this.checked) {
-      localStorage.removeItem('downloadedImages');
+      localStorage.removeItem("downloadedImages");
     } else if (allImages.length > 0) {
-      localStorage.setItem('downloadedImages', JSON.stringify(allImages));
+      localStorage.setItem("downloadedImages", JSON.stringify(allImages));
     }
   });
 
   // حدث تغيير حالة تصفية المكررات
-  filterDuplicatesCheckbox.addEventListener("change", function() {
-    localStorage.setItem('filterDuplicates', this.checked);
+  filterDuplicatesCheckbox.addEventListener("change", function () {
+    localStorage.setItem("filterDuplicates", this.checked);
     const filterEnabled = this.checked;
 
     if (filterEnabled) {
@@ -1054,154 +1109,176 @@ async function getSafeFileName(src, blob) {
     updateImageCount();
   });
 
-  downloadBtn.addEventListener("click", async () => {
-    const checkboxes = document.querySelectorAll(
-      "input[type=checkbox]:checked"
+downloadBtn.addEventListener("click", async () => {
+  const checkboxes = document.querySelectorAll("input[type=checkbox]:checked");
+  if (checkboxes.length === 0) {
+    alert("الرجاء تحديد الصور أولاً");
+    return;
+  }
+
+  // جمع الصور الفريدة بناءً على الهاش إذا كان خيار تصفية التكرارات مفعلاً
+  let uniqueImages = [];
+  if (filterDuplicatesCheckbox.checked) {
+    const uniqueHashes = new Set();
+    uniqueImages = Array.from(checkboxes).filter((cb) => {
+      const hash = cb.dataset.hash;
+      if (!hash) return false; // تجاهل الصور بدون هاش
+      if (uniqueHashes.has(hash)) return false; // تجاهل التكرارات
+      uniqueHashes.add(hash);
+      return cb.closest(".image-item").style.display !== "none"; // التأكد من أن الصورة مرئية
+    });
+  } else {
+    uniqueImages = Array.from(checkboxes);
+  }
+
+  const totalImages = uniqueImages.length;
+  if (totalImages === 0) {
+    alert("لا توجد صور فريدة محددة للتنزيل");
+    return;
+  }
+
+  const confirmed = await customConfirm(
+    `هل تريد تنزيل ${totalImages} صورة؟\n` +
+      `قد يستغرق هذا بعض الوقت حسب عدد الصور`
+  );
+
+  if (!confirmed) return;
+
+  const progressBar = showProgressBar();
+  const cancelBtn = document.getElementById("netnet-cancel-download");
+  let cancelled = false;
+
+  cancelBtn.onclick = () => {
+    cancelled = true;
+    hideProgressBar();
+    showNotification(
+      "error",
+      "تم الإلغاء",
+      "تم إلغاء عملية التنزيل",
+      `تم تنزيل ${downloadedCount} من ${totalImages} صور`
     );
-    if (checkboxes.length === 0) {
-      alert("الرجاء تحديد الصور أولاً");
-      return;
-    }
+  };
 
-    const totalImages = checkboxes.length;
-    const confirmed = await customConfirm(
-      `هل تريد تنزيل ${totalImages} صورة؟\n` +
-        `قد يستغرق هذا بعض الوقت حسب عدد الصور`
-    );
+  const zip = new JSZip();
+  let downloadedCount = 0;
+  const txtLines = [];
+  const failedDownloads = [];
+  const addedFiles = new Set();
 
-    if (!confirmed) return;
+  if (includeTxtCheckbox.checked) {
+    txtLines.push("=== روابط الصور التي تم تنزيلها ===");
+    txtLines.push(`تم تنزيل ${totalImages} صور من ${window.location.href}`);
+    txtLines.push("===========================");
+    txtLines.push("");
+  }
 
-    const progressBar = showProgressBar();
-    const cancelBtn = document.getElementById("netnet-cancel-download");
-    let cancelled = false;
+  const processImage = async (checkbox, index) => {
+    if (cancelled) return;
 
-    cancelBtn.onclick = () => {
-      cancelled = true;
-      hideProgressBar();
-      showNotification(
-        "error",
-        "تم الإلغاء",
-        "تم إلغاء عملية التنزيل",
-        `تم تنزيل ${downloadedCount} من ${totalImages} صور`
+    const imageItem = checkbox.closest(".image-item");
+    const imgElement = imageItem.querySelector("img");
+    const src = imgElement.src;
+    const title = (checkbox.dataset.title || "").trim();
+
+    try {
+      updateProgressBar(
+        (index / totalImages) * 0.9,
+        index + 1,
+        totalImages,
+        `جاري تنزيل الصورة ${index + 1} من ${totalImages}`
       );
-    };
 
-    const zip = new JSZip();
-    let downloadedCount = 0;
-    const txtLines = [];
-    const failedDownloads = [];
+      const { blob, type } = await downloadImage(imgElement);
+      const actualType = (await getActualImageType(blob)) || "png";
+      const ext = actualType === "jpg" ? "jpeg" : actualType;
+      const fileName = `${index + 1}.${ext}`;
 
-    if (includeTxtCheckbox.checked) {
-      txtLines.push("=== روابط الصور التي تم تنزيلها ===");
-      txtLines.push(`تم تنزيل ${totalImages} صور من ${window.location.href}`);
-      txtLines.push("===========================");
-      txtLines.push("");
-    }
-
-    const processImage = async (checkbox, index) => {
-      if (cancelled) return;
-
-      const imageItem = checkbox.closest(".image-item");
-      const imgElement = imageItem.querySelector("img");
-      const src = imgElement.src;
-      const title = (checkbox.dataset.title || "").trim();
-
-      try {
-        updateProgressBar(
-          (index / totalImages) * 0.9,
-          index + 1,
-          totalImages,
-          `جاري تنزيل الصورة ${index + 1} من ${totalImages}`
-        );
-
-        const { blob, type } = await downloadImage(imgElement);
-        const fileName = await getSafeFileName(src, blob); // استخدام الدالة المعدلة
-
-        // إذا كان الملف SVG، اطلب تأكيد المستخدم
-        if (fileName.toLowerCase().endsWith(".svg")) {
-          const svgConfirmed = await customConfirm(
-            "هذه صورة SVG. هل تريد إضافتها إلى ملف ZIP كملف SVG؟"
-          );
-          if (!svgConfirmed) {
-            showNotification(
-              "info",
-              "تم تخطي الصورة",
-              "لم يتم إضافة ملف SVG إلى ملف ZIP",
-              "تم تخطي الصورة بناءً على اختيار المستخدم"
-            );
-            return;
-          }
-        }
-
+      if (!addedFiles.has(fileName)) {
         zip.file(fileName, blob);
+        addedFiles.add(fileName);
         if (includeTxtCheckbox.checked) {
           txtLines.push(`${fileName}: ${src}`);
         }
-
         downloadedCount++;
-        updateProgressBar(
-          ((index + 1) / totalImages) * 0.9,
-          index + 1,
-          totalImages
-        );
-      } catch (err) {
-        console.error("Error downloading image:", src, err);
-        failedDownloads.push(src);
-        if (includeTxtCheckbox.checked) {
-          txtLines.push(`[FAILED]: ${src}`);
-        }
       }
-    };
 
-    const batchSize = 5;
-    for (let i = 0; i < checkboxes.length; i += batchSize) {
-      if (cancelled) break;
-
-      const batch = Array.from(checkboxes).slice(i, i + batchSize);
-      await Promise.all(batch.map((cb, idx) => processImage(cb, i + idx)));
-    }
-
-    if (cancelled) return;
-
-    if (includeTxtCheckbox.checked) {
-      if (failedDownloads.length > 0) {
-        txtLines.push("\n=== الصور التي فشل تنزيلها ===");
-        txtLines.push(...failedDownloads);
-      }
-      zip.file("image_links.txt", txtLines.join("\n"));
-    }
-
-    updateProgressBar(0.95, totalImages, totalImages, "جاري إنشاء ملف ZIP...");
-    const content = await zip.generateAsync({ type: "blob" }, (metadata) => {
       updateProgressBar(
-        0.95 + (metadata.percent / 100) * 0.05,
-        totalImages,
+        ((index + 1) / totalImages) * 0.9,
+        index + 1,
         totalImages
       );
-    });
+    } catch (err) {
+      console.error("Error downloading image:", src, err);
+      failedDownloads.push(src);
+      if (includeTxtCheckbox.checked) {
+        txtLines.push(`[FAILED]: ${src}`);
+      }
+    }
+  };
 
-    updateProgressBar(1, totalImages, totalImages, "جاري التنزيل...");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(content);
-    a.download = `downloaded_images_${new Date().getTime()}.zip`;
-    document.body.appendChild(a);
-    a.click();
+  const batchSize = 5;
+  for (let i = 0; i < uniqueImages.length; i += batchSize) {
+    if (cancelled) break;
 
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(a.href);
-      hideProgressBar();
+    const batch = uniqueImages.slice(i, i + batchSize);
+    await Promise.all(batch.map((cb, idx) => processImage(cb, i + idx)));
+  }
 
-      showNotification(
-        "success",
-        "تم التنزيل بنجاح",
-        `تم تنزيل ${downloadedCount} من ${totalImages} صور`,
-        failedDownloads.length > 0
-          ? `${failedDownloads.length} صور فشل تنزيلها`
-          : "تم تنزيل جميع الصور بنجاح"
-      );
-    }, 100);
+  if (cancelled) return;
+
+  if (includeTxtCheckbox.checked) {
+    if (failedDownloads.length > 0) {
+      txtLines.push("\n=== الصور التي فشل تنزيلها ===");
+      txtLines.push(...failedDownloads);
+    }
+    zip.file("image_links.txt", txtLines.join("\n"));
+  }
+
+  // التحقق من عدد الملفات المضافة
+  if (downloadedCount !== totalImages) {
+    hideProgressBar();
+    showNotification(
+      "error",
+      "خطأ في التنزيل",
+      `تم تنزيل ${downloadedCount} صورة فقط من ${totalImages} صورة محددة`,
+      `فشل تنزيل ${
+        totalImages - downloadedCount
+      } صورة. الرجاء المحاولة مرة أخرى.`
+    );
+    return;
+  }
+
+  updateProgressBar(0.95, totalImages, totalImages, "جاري إنشاء ملف ZIP...");
+  const content = await zip.generateAsync({ type: "blob" }, (metadata) => {
+    updateProgressBar(
+      0.95 + (metadata.percent / 100) * 0.05,
+      totalImages,
+      totalImages
+    );
   });
+
+  updateProgressBar(1, totalImages, totalImages, "جاري التنزيل...");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(content);
+  a.download = `downloaded_images_${new Date().getTime()}.zip`;
+  document.body.appendChild(a);
+  a.click();
+
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    hideProgressBar();
+
+    showNotification(
+      "success",
+      "تم التنزيل بنجاح",
+      `تم تنزيل ${downloadedCount} من ${totalImages} صور`,
+      failedDownloads.length > 0
+        ? `${failedDownloads.length} صور فشل تنزيلها`
+        : "تم تنزيل جميع الصور بنجاح"
+    );
+  }, 100);
+});
 
   selectAllBtn.addEventListener("click", () => {
     document
@@ -1239,50 +1316,50 @@ async function getSafeFileName(src, blob) {
     updateImageCount();
   });
 
-let scrollInterval = null;
-let scrollSpeed = 100;
+  let scrollInterval = null;
+  let scrollSpeed = 100;
 
-const scrollUpBtn = document.getElementById("scroll-up");
-const scrollDownBtn = document.getElementById("scroll-down");
-const scrollSpeedSelect = document.getElementById("scroll-speed");
+  const scrollUpBtn = document.getElementById("scroll-up");
+  const scrollDownBtn = document.getElementById("scroll-down");
+  const scrollSpeedSelect = document.getElementById("scroll-speed");
 
-// تحميل سرعة التمرير المحفوظة
-const savedScrollSpeed = localStorage.getItem("scrollSpeed");
-if (savedScrollSpeed) {
-  scrollSpeedSelect.value = savedScrollSpeed;
-  scrollSpeed = parseInt(savedScrollSpeed);
-}
-
-scrollSpeedSelect.addEventListener("change", function () {
-  scrollSpeed = parseInt(this.value);
-  // حفظ قيمة السرعة في localStorage
-  localStorage.setItem("scrollSpeed", this.value);
-});
-
-function startScroll(direction) {
-  stopScroll();
-
-  const activeBtn = direction === "up" ? scrollUpBtn : scrollDownBtn;
-  const otherBtn = direction === "up" ? scrollDownBtn : scrollUpBtn;
-
-  if (activeBtn.classList.contains("zoom")) {
-    activeBtn.classList.remove("zoom");
-    stopScroll();
-    return;
-  } else {
-    activeBtn.classList.add("zoom");
-    otherBtn.classList.remove("zoom");
+  // تحميل سرعة التمرير المحفوظة
+  const savedScrollSpeed = localStorage.getItem("scrollSpeed");
+  if (savedScrollSpeed) {
+    scrollSpeedSelect.value = savedScrollSpeed;
+    scrollSpeed = parseInt(savedScrollSpeed);
   }
 
-  scrollInterval = setInterval(() => {
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: (dir, speed) => {
-        window.scrollBy(0, dir === "up" ? -speed : speed);
-      },
-      args: [direction, scrollSpeed],
-    });
-  }, 100);
+  scrollSpeedSelect.addEventListener("change", function () {
+    scrollSpeed = parseInt(this.value);
+    // حفظ قيمة السرعة في localStorage
+    localStorage.setItem("scrollSpeed", this.value);
+  });
+
+  function startScroll(direction) {
+    stopScroll();
+
+    const activeBtn = direction === "up" ? scrollUpBtn : scrollDownBtn;
+    const otherBtn = direction === "up" ? scrollDownBtn : scrollUpBtn;
+
+    if (activeBtn.classList.contains("zoom")) {
+      activeBtn.classList.remove("zoom");
+      stopScroll();
+      return;
+    } else {
+      activeBtn.classList.add("zoom");
+      otherBtn.classList.remove("zoom");
+    }
+
+    scrollInterval = setInterval(() => {
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (dir, speed) => {
+          window.scrollBy(0, dir === "up" ? -speed : speed);
+        },
+        args: [direction, scrollSpeed],
+      });
+    }, 100);
   }
 
   function stopScroll() {
