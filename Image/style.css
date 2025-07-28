@@ -17,6 +17,10 @@ icon {
     display: flex;
 }
 
+a {
+    text-decoration: none;
+}
+
 new {
     position: absolute;
     padding: 4px;
@@ -201,7 +205,8 @@ img {
     transition: ease 0.3s;
     opacity: 1;
     margin-top: -0;
-    z-index: 30;
+    z-index: 50;
+    box-shadow: 0px 4px 14px #45546363;
 }
 .Vipsub {
     transition: ease 0.4s;
@@ -213,7 +218,7 @@ img {
     left: 3px;
     background: white;
     padding: 10px;
-    box-shadow: 0px 4px 14px #45546363;
+    box-shadow: 0px 0px 0px #45546363;
     border-radius: 10px;
     width: 210px;
     text-align: -webkit-center;
@@ -224,7 +229,7 @@ img {
     content: '';
     top: -40px;
     height: 40px;
-    width: 80px;
+    width: 186px;
     left: -12px;
 }
 xxc {
@@ -264,6 +269,10 @@ xxc::before {
 }
 .Vipsub-button:active {
     box-shadow: 0px 2px 5px #dfa300 inset;
+}
+.Vipsub-button:focus {
+    transition: ease 0.3s;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 3px #24e3d9;
 }
 
 #images-container {
@@ -336,7 +345,7 @@ xxc::before {
     overflow: hidden;
     text-align: center;
     text-overflow: ellipsis;
-    max-height: 50px;
+    max-height: 119px;
     /* white-space: nowrap; */
 }
 
