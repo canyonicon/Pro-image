@@ -9,9 +9,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const clearCacheBtn = document.getElementById("clear-cache-btn");
   const saveOnReloadCheckbox = document.getElementById("save-on-reload");
 
+  
   // تحميل الإعدادات المحفوظة
-  filterDuplicatesCheckbox.checked =
-    localStorage.getItem("filterDuplicates") === "true";
+  filterDuplicatesCheckbox.checked = false; // تم تغيير هذا السطر ليكون false دائماً
   saveOnReloadCheckbox.checked =
     localStorage.getItem("saveImagesEnabled") !== "false";
 
@@ -141,41 +141,117 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Image Processing Functions
-  function getImageHash(imgElement) {
-    const canvas = document.createElement("canvas");
-    canvas.width = 8;
-    canvas.height = 8;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(imgElement, 0, 0, 8, 8);
-    const data = ctx.getImageData(0, 0, 8, 8).data;
-    let hash = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      hash += data[i] + data[i + 1] + data[i + 2];
+  // دالة لتحويل الصورة إلى تدرج الرمادي
+  function toGrayscale(pixels) {
+    const grayscale = new Uint8Array(pixels.length / 4);
+    for (let i = 0; i < pixels.length; i += 4) {
+      // تحويل RGB إلى تدرج الرمادي باستخدام الصيغة القياسية
+      grayscale[i / 4] = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
     }
-    return hash.toString(16);
+    return grayscale;
   }
 
-async function getActualImageType(blob) {
-  try {
-    const buffer = await blob.slice(0, 8).arrayBuffer();
-    const view = new DataView(buffer);
+  // دالة لتطبيق تحويل الجيب المنفصل (DCT)
+  function applyDCT(data, width, height) {
+    const result = new Float64Array(width * height);
+    const cosTable = new Float64Array(width * height);
+    for (let u = 0; u < width; u++) {
+      for (let v = 0; v < height; v++) {
+        cosTable[u * height + v] = Math.cos(((2 * u + 1) * v * Math.PI) / (2 * height));
+      }
+    }
 
-    if (view.getUint32(0) === 0x89504e47) return "png";
-    if (view.getUint16(0) === 0xffd8) return "jpg";
-    if (view.getUint32(0) === 0x47494638) return "gif";
-    if (view.getUint32(0) === 0x52494646 && view.getUint32(4) === 0x57454250) return "webp";
-    if (view.getUint16(0) === 0x424d) return "bmp";
-    if (view.getUint32(0) === 0x49492a00) return "tiff";
-    if (view.getUint32(0) === 0x4d4d002a) return "tiff";
-
-    const text = await blob.slice(0, 100).text();
-    if (text.trim().startsWith("<svg") || text.includes("<svg")) return "svg";
-    if (view.getUint16(0) === 0x0000 && view.getUint16(2) === 0x0001) return "ico";
-  } catch (error) {
-    console.error("Error detecting image type:", error);
+    for (let u = 0; u < width; u++) {
+      for (let v = 0; v < height; v++) {
+        let sum = 0;
+        for (let x = 0; x < width; x++) {
+          for (let y = 0; y < height; y++) {
+            sum += data[x * height + y] * cosTable[x * height + v] * cosTable[y * width + u];
+          }
+        }
+        const cu = u === 0 ? 1 / Math.sqrt(2) : 1;
+        const cv = v === 0 ? 1 / Math.sqrt(2) : 1;
+        result[u * height + v] = (sum * cu * cv) / 4;
+      }
+    }
+    return result;
   }
-  return null;
-}
+
+  // دالة لحساب مسافة هامينغ بين هاشين
+  function hammingDistance(hash1, hash2) {
+    if (hash1.length !== hash2.length) return Infinity;
+    let distance = 0;
+    for (let i = 0; i < hash1.length; i++) {
+      if (hash1[i] !== hash2[i]) distance++;
+    }
+    return distance;
+  }
+
+  // دالة لتحديد إذا كانت الصورتان متشابهتين
+  function isSimilarImage(hash1, hash2, threshold = 5) {
+    return hammingDistance(hash1, hash2) <= threshold;
+  }
+
+  // دالة لتوليد Perceptual Hash
+  function getPerceptualHash(imgElement) {
+    // إنشاء قماش بحجم 32x32
+    const canvas = document.createElement("canvas");
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(imgElement, 0, 0, 32, 32);
+
+    // استخراج بيانات البكسل
+    const imageData = ctx.getImageData(0, 0, 32, 32).data;
+    const grayscale = toGrayscale(imageData);
+
+    // تطبيق DCT
+    const dct = applyDCT(grayscale, 32, 32);
+
+    // استخراج الجزء 8x8 من DCT
+    const dctSize = 8;
+    let sum = 0;
+    const dctBlock = new Float64Array(dctSize * dctSize);
+    for (let u = 0; u < dctSize; u++) {
+      for (let v = 0; v < dctSize; v++) {
+        dctBlock[u * dctSize + v] = dct[u * 32 + v];
+        sum += dctBlock[u * dctSize + v];
+      }
+    }
+
+    // حساب المتوسط
+    const mean = sum / (dctSize * dctSize);
+
+    // إنشاء الهاش (64 بت)
+    let hash = "";
+    for (let i = 0; i < dctBlock.length; i++) {
+      hash += dctBlock[i] > mean ? "1" : "0";
+    }
+
+    return hash;
+  }
+
+  async function getActualImageType(blob) {
+    try {
+      const buffer = await blob.slice(0, 8).arrayBuffer();
+      const view = new DataView(buffer);
+
+      if (view.getUint32(0) === 0x89504e47) return "png";
+      if (view.getUint16(0) === 0xffd8) return "jpg";
+      if (view.getUint32(0) === 0x47494638) return "gif";
+      if (view.getUint32(0) === 0x52494646 && view.getUint32(4) === 0x57454250) return "webp";
+      if (view.getUint16(0) === 0x424d) return "bmp";
+      if (view.getUint32(0) === 0x49492a00) return "tiff";
+      if (view.getUint32(0) === 0x4d4d002a) return "tiff";
+
+      const text = await blob.slice(0, 100).text();
+      if (text.trim().startsWith("<svg") || text.includes("<svg")) return "svg";
+      if (view.getUint16(0) === 0x0000 && view.getUint16(2) === 0x0001) return "ico";
+    } catch (error) {
+      console.error("Error detecting image type:", error);
+    }
+    return null;
+  }
 
   function getOriginalExtension(url) {
     const validExts = [
@@ -888,19 +964,24 @@ async function getActualImageType(blob) {
       }
 
       img.onload = () => {
-        const hash = getImageHash(img);
+        const hash = getPerceptualHash(img);
         const filterEnabled = filterDuplicatesCheckbox?.checked ?? false;
 
-        const existingImages = imageHashes.get(hash) || [];
-        const isDuplicate = existingImages.length > 0;
+        let isDuplicate = false;
+        if (filterEnabled) {
+          for (let [existingHash, images] of imageHashes) {
+            if (isSimilarImage(hash, existingHash)) {
+              isDuplicate = true;
+              images.push({ id: `img-${globalIndex}`, src, title, element: div });
+              imageHashes.set(existingHash, images);
+              break;
+            }
+          }
+        }
 
-        existingImages.push({
-          id: `img-${globalIndex}`,
-          src,
-          title,
-          element: div,
-        });
-        imageHashes.set(hash, existingImages);
+        if (!isDuplicate) {
+          imageHashes.set(hash, [{ id: `img-${globalIndex}`, src, title, element: div }]);
+        }
 
         div.querySelector("input[type=checkbox]").dataset.hash = hash;
 
@@ -916,9 +997,6 @@ async function getActualImageType(blob) {
         console.warn("Failed to load image:", src);
       };
 
-      // div.addEventListener("dblclick", () => {
-      //   openImagePreview(src);
-      // });
       const previewBtn = div.querySelector(".preview-btn");
       previewBtn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -1062,38 +1140,40 @@ async function getActualImageType(blob) {
 
   // حدث تغيير حالة تصفية المكررات
   filterDuplicatesCheckbox.addEventListener("change", function () {
-    localStorage.setItem("filterDuplicates", this.checked);
     const filterEnabled = this.checked;
 
     if (filterEnabled) {
-      imageHashes.forEach((images, hash) => {
-        if (images.length > 1) {
-          images.forEach((img, index) => {
-            if (img.element) {
-              if (index === 0) {
-                img.element.style.display = "";
-                img.element.querySelector(
-                  "input[type=checkbox]"
-                ).checked = true;
-                img.element.classList.add("zoom1");
-              } else {
-                img.element.style.display = "none";
-                img.element.querySelector(
-                  "input[type=checkbox]"
-                ).checked = false;
-                img.element.classList.remove("zoom1");
-              }
-            }
-          });
-        } else {
-          images.forEach((img) => {
-            if (img.element) {
+      const groupedImages = new Map();
+      // تجميع الصور حسب التشابه
+      for (let [hash, images] of imageHashes) {
+        let foundGroup = false;
+        for (let [groupHash, group] of groupedImages) {
+          if (isSimilarImage(hash, groupHash)) {
+            group.push(...images);
+            groupedImages.set(groupHash, group);
+            foundGroup = true;
+            break;
+          }
+        }
+        if (!foundGroup) {
+          groupedImages.set(hash, images);
+        }
+      }
+
+      groupedImages.forEach((images, hash) => {
+        images.forEach((img, index) => {
+          if (img.element) {
+            if (index === 0) {
               img.element.style.display = "";
               img.element.querySelector("input[type=checkbox]").checked = true;
               img.element.classList.add("zoom1");
+            } else {
+              img.element.style.display = "none";
+              img.element.querySelector("input[type=checkbox]").checked = false;
+              img.element.classList.remove("zoom1");
             }
-          });
-        }
+          }
+        });
       });
     } else {
       imageHashes.forEach((images) => {
@@ -1109,176 +1189,182 @@ async function getActualImageType(blob) {
     updateImageCount();
   });
 
-downloadBtn.addEventListener("click", async () => {
-  const checkboxes = document.querySelectorAll("input[type=checkbox]:checked");
-  if (checkboxes.length === 0) {
-    alert("الرجاء تحديد الصور أولاً");
-    return;
-  }
+  downloadBtn.addEventListener("click", async () => {
+    const checkboxes = document.querySelectorAll("input[type=checkbox]:checked");
+    if (checkboxes.length === 0) {
+      alert("الرجاء تحديد الصور أولاً");
+      return;
+    }
 
-  // جمع الصور الفريدة بناءً على الهاش إذا كان خيار تصفية التكرارات مفعلاً
-  let uniqueImages = [];
-  if (filterDuplicatesCheckbox.checked) {
-    const uniqueHashes = new Set();
-    uniqueImages = Array.from(checkboxes).filter((cb) => {
-      const hash = cb.dataset.hash;
-      if (!hash) return false; // تجاهل الصور بدون هاش
-      if (uniqueHashes.has(hash)) return false; // تجاهل التكرارات
-      uniqueHashes.add(hash);
-      return cb.closest(".image-item").style.display !== "none"; // التأكد من أن الصورة مرئية
-    });
-  } else {
-    uniqueImages = Array.from(checkboxes);
-  }
+    // جمع الصور الفريدة بناءً على الهاش إذا كان خيار تصفية التكرارات مفعلاً
+    let uniqueImages = [];
+    if (filterDuplicatesCheckbox.checked) {
+      const uniqueHashes = new Set();
+      uniqueImages = Array.from(checkboxes).filter((cb) => {
+        const hash = cb.dataset.hash;
+        if (!hash) return false; // تجاهل الصور بدون هاش
+        let isUnique = true;
+        for (let existingHash of uniqueHashes) {
+          if (isSimilarImage(hash, existingHash)) {
+            isUnique = false;
+            break;
+          }
+        }
+        if (isUnique) uniqueHashes.add(hash);
+        return isUnique && cb.closest(".image-item").style.display !== "none";
+      });
+    } else {
+      uniqueImages = Array.from(checkboxes);
+    }
 
-  const totalImages = uniqueImages.length;
-  if (totalImages === 0) {
-    alert("لا توجد صور فريدة محددة للتنزيل");
-    return;
-  }
+    const totalImages = uniqueImages.length;
+    if (totalImages === 0) {
+      alert("لا توجد صور فريدة محددة للتنزيل");
+      return;
+    }
 
-  const confirmed = await customConfirm(
-    `هل تريد تنزيل ${totalImages} صورة؟\n` +
-      `قد يستغرق هذا بعض الوقت حسب عدد الصور`
-  );
-
-  if (!confirmed) return;
-
-  const progressBar = showProgressBar();
-  const cancelBtn = document.getElementById("netnet-cancel-download");
-  let cancelled = false;
-
-  cancelBtn.onclick = () => {
-    cancelled = true;
-    hideProgressBar();
-    showNotification(
-      "error",
-      "تم الإلغاء",
-      "تم إلغاء عملية التنزيل",
-      `تم تنزيل ${downloadedCount} من ${totalImages} صور`
+    const confirmed = await customConfirm(
+      `هل تريد تنزيل ${totalImages} صورة؟\n` +
+        `قد يستغرق هذا بعض الوقت حسب عدد الصور`
     );
-  };
 
-  const zip = new JSZip();
-  let downloadedCount = 0;
-  const txtLines = [];
-  const failedDownloads = [];
-  const addedFiles = new Set();
+    if (!confirmed) return;
 
-  if (includeTxtCheckbox.checked) {
-    txtLines.push("=== روابط الصور التي تم تنزيلها ===");
-    txtLines.push(`تم تنزيل ${totalImages} صور من ${window.location.href}`);
-    txtLines.push("===========================");
-    txtLines.push("");
-  }
+    const progressBar = showProgressBar();
+    const cancelBtn = document.getElementById("netnet-cancel-download");
+    let cancelled = false;
 
-  const processImage = async (checkbox, index) => {
+    cancelBtn.onclick = () => {
+      cancelled = true;
+      hideProgressBar();
+      showNotification(
+        "error",
+        "تم الإلغاء",
+        "تم إلغاء عملية التنزيل",
+        `تم تنزيل ${downloadedCount} من ${totalImages} صور`
+      );
+    };
+
+    const zip = new JSZip();
+    let downloadedCount = 0;
+    const txtLines = [];
+    const failedDownloads = [];
+    const addedFiles = new Set();
+
+    if (includeTxtCheckbox.checked) {
+      txtLines.push("=== روابط الصور التي تم تنزيلها ===");
+      txtLines.push(`تم تنزيل ${totalImages} صور من ${window.location.href}`);
+      txtLines.push("===========================");
+      txtLines.push("");
+    }
+
+    const processImage = async (checkbox, index) => {
+      if (cancelled) return;
+
+      const imageItem = checkbox.closest(".image-item");
+      const imgElement = imageItem.querySelector("img");
+      const src = imgElement.src;
+      const title = (checkbox.dataset.title || "").trim();
+
+      try {
+        updateProgressBar(
+          (index / totalImages) * 0.9,
+          index + 1,
+          totalImages,
+          `جاري تنزيل الصورة ${index + 1} من ${totalImages}`
+        );
+
+        const { blob, type } = await downloadImage(imgElement);
+        const actualType = (await getActualImageType(blob)) || "png";
+        const ext = actualType === "jpg" ? "jpeg" : actualType;
+        const fileName = `${index + 1}.${ext}`;
+
+        if (!addedFiles.has(fileName)) {
+          zip.file(fileName, blob);
+          addedFiles.add(fileName);
+          if (includeTxtCheckbox.checked) {
+            txtLines.push(`${fileName}: ${src}`);
+          }
+          downloadedCount++;
+        }
+
+        updateProgressBar(
+          ((index + 1) / totalImages) * 0.9,
+          index + 1,
+          totalImages
+        );
+      } catch (err) {
+        console.error("Error downloading image:", src, err);
+        failedDownloads.push(src);
+        if (includeTxtCheckbox.checked) {
+          txtLines.push(`[FAILED]: ${src}`);
+        }
+      }
+    };
+
+    const batchSize = 5;
+    for (let i = 0; i < uniqueImages.length; i += batchSize) {
+      if (cancelled) break;
+
+      const batch = uniqueImages.slice(i, i + batchSize);
+      await Promise.all(batch.map((cb, idx) => processImage(cb, i + idx)));
+    }
+
     if (cancelled) return;
 
-    const imageItem = checkbox.closest(".image-item");
-    const imgElement = imageItem.querySelector("img");
-    const src = imgElement.src;
-    const title = (checkbox.dataset.title || "").trim();
-
-    try {
-      updateProgressBar(
-        (index / totalImages) * 0.9,
-        index + 1,
-        totalImages,
-        `جاري تنزيل الصورة ${index + 1} من ${totalImages}`
-      );
-
-      const { blob, type } = await downloadImage(imgElement);
-      const actualType = (await getActualImageType(blob)) || "png";
-      const ext = actualType === "jpg" ? "jpeg" : actualType;
-      const fileName = `${index + 1}.${ext}`;
-
-      if (!addedFiles.has(fileName)) {
-        zip.file(fileName, blob);
-        addedFiles.add(fileName);
-        if (includeTxtCheckbox.checked) {
-          txtLines.push(`${fileName}: ${src}`);
-        }
-        downloadedCount++;
+    if (includeTxtCheckbox.checked) {
+      if (failedDownloads.length > 0) {
+        txtLines.push("\n=== الصور التي فشل تنزيلها ===");
+        txtLines.push(...failedDownloads);
       }
+      zip.file("image_links.txt", txtLines.join("\n"));
+    }
 
+    // التحقق من عدد الملفات المضافة
+    if (downloadedCount !== totalImages) {
+      hideProgressBar();
+      showNotification(
+        "error",
+        "خطأ في التنزيل",
+        `تم تنزيل ${downloadedCount} صورة فقط من ${totalImages} صورة محددة`,
+        `فشل تنزيل ${
+          totalImages - downloadedCount
+        } صورة. الرجاء المحاولة مرة أخرى.`
+      );
+      return;
+    }
+
+    updateProgressBar(0.95, totalImages, totalImages, "جاري إنشاء ملف ZIP...");
+    const content = await zip.generateAsync({ type: "blob" }, (metadata) => {
       updateProgressBar(
-        ((index + 1) / totalImages) * 0.9,
-        index + 1,
+        0.95 + (metadata.percent / 100) * 0.05,
+        totalImages,
         totalImages
       );
-    } catch (err) {
-      console.error("Error downloading image:", src, err);
-      failedDownloads.push(src);
-      if (includeTxtCheckbox.checked) {
-        txtLines.push(`[FAILED]: ${src}`);
-      }
-    }
-  };
+    });
 
-  const batchSize = 5;
-  for (let i = 0; i < uniqueImages.length; i += batchSize) {
-    if (cancelled) break;
+    updateProgressBar(1, totalImages, totalImages, "جاري التنزيل...");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(content);
+    a.download = `downloaded_images_${new Date().getTime()}.zip`;
+    document.body.appendChild(a);
+    a.click();
 
-    const batch = uniqueImages.slice(i, i + batchSize);
-    await Promise.all(batch.map((cb, idx) => processImage(cb, i + idx)));
-  }
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+      hideProgressBar();
 
-  if (cancelled) return;
-
-  if (includeTxtCheckbox.checked) {
-    if (failedDownloads.length > 0) {
-      txtLines.push("\n=== الصور التي فشل تنزيلها ===");
-      txtLines.push(...failedDownloads);
-    }
-    zip.file("image_links.txt", txtLines.join("\n"));
-  }
-
-  // التحقق من عدد الملفات المضافة
-  if (downloadedCount !== totalImages) {
-    hideProgressBar();
-    showNotification(
-      "error",
-      "خطأ في التنزيل",
-      `تم تنزيل ${downloadedCount} صورة فقط من ${totalImages} صورة محددة`,
-      `فشل تنزيل ${
-        totalImages - downloadedCount
-      } صورة. الرجاء المحاولة مرة أخرى.`
-    );
-    return;
-  }
-
-  updateProgressBar(0.95, totalImages, totalImages, "جاري إنشاء ملف ZIP...");
-  const content = await zip.generateAsync({ type: "blob" }, (metadata) => {
-    updateProgressBar(
-      0.95 + (metadata.percent / 100) * 0.05,
-      totalImages,
-      totalImages
-    );
+      showNotification(
+        "success",
+        "تم التنزيل بنجاح",
+        `تم تنزيل ${downloadedCount} من ${totalImages} صور`,
+        failedDownloads.length > 0
+          ? `${failedDownloads.length} صور فشل تنزيلها`
+          : "تم تنزيل جميع الصور بنجاح"
+      );
+    }, 100);
   });
-
-  updateProgressBar(1, totalImages, totalImages, "جاري التنزيل...");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(content);
-  a.download = `downloaded_images_${new Date().getTime()}.zip`;
-  document.body.appendChild(a);
-  a.click();
-
-  setTimeout(() => {
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
-    hideProgressBar();
-
-    showNotification(
-      "success",
-      "تم التنزيل بنجاح",
-      `تم تنزيل ${downloadedCount} من ${totalImages} صور`,
-      failedDownloads.length > 0
-        ? `${failedDownloads.length} صور فشل تنزيلها`
-        : "تم تنزيل جميع الصور بنجاح"
-    );
-  }, 100);
-});
 
   selectAllBtn.addEventListener("click", () => {
     document
