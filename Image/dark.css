@@ -5,6 +5,9 @@ body.dark-mode {
 /* body.dark-mode .ffde2 button:hover {
     background: #ffffff11;
 } */
+body.dark-mode  hr {
+    background: #d0e8ff21;
+}
 body.dark-mode .scrol button:hover {
     background-color: #ffffff11;
 }
@@ -41,6 +44,7 @@ body.dark-mode .ffde2 button:hover {
     background: #ffffff11;
 }
 body.dark-mode .jaxe a {
+    color: #78c0ff;
     background: #42a7ff36;
 }
 body.dark-mode .jaxe a:hover {
@@ -99,4 +103,16 @@ body.dark-mode .Vipsub {
 body.dark-mode .name123 {
     box-shadow: 0 0 0 2px #313439;
     color: #495261;
+}
+body.dark-mode .logo:hover .Vipsub {
+    box-shadow: 0px 4px 14px #00000063;
+}
+body.dark-mode .Vipsub-button:focus {
+    box-shadow: 0 0 0 2px #313439, 0 0 0 3px #24e3d9;
+}
+body.dark-mode .zssx:hover {
+    background: #ffffff1f;
+}
+body.dark-mode .ripple {
+    background: rgba(255, 255, 255, 0.116);
 }
