@@ -9,7 +9,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   const clearCacheBtn = document.getElementById("clear-cache-btn");
   const saveOnReloadCheckbox = document.getElementById("save-on-reload");
 
-  
+  // تحميل مكتبة jsPDF بشكل غير متزامن
+  const loadJSPDF = async () => {
+    return new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = chrome.runtime.getURL("jspdf.umd.min.js");
+      script.onload = () => resolve(window.jspdf);
+      document.head.appendChild(script);
+    });
+  };
+
+  const jsPDFPromise = loadJSPDF();
+
   // تحميل الإعدادات المحفوظة
   filterDuplicatesCheckbox.checked = false; // تم تغيير هذا السطر ليكون false دائماً
   saveOnReloadCheckbox.checked =
@@ -20,65 +31,89 @@ document.addEventListener("DOMContentLoaded", async () => {
   const imageHashes = new Map();
 
   // Custom Confirm Dialog Function
-  async function customConfirm(message) {
-    return new Promise((resolve) => {
-      const overlay = document.createElement("div");
-      overlay.style = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 9999;
-        opacity: 0;
-        transition: opacity 0.3s;
-      `;
+async function customConfirm(message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
 
-      const dialog = document.createElement("div");
-      dialog.style = `
-        background: white;
-        border-radius: 8px;
-        padding: 20px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-        max-width: 61%;
-        max-height: 90%;
-        overflow: auto;
-        text-align: center;
-        transform: translateY(20px);
-        transition: transform 0.3s;
-      `;
+    const dialog = document.createElement("div");
+    dialog.className = "confirm-dialog";
 
-      dialog.innerHTML = `
-        ${message}
-        <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px;">
-          <button id="confirmOk">Ok</button>
-          <button id="confirmCancel">Cancel</button>
-        </div>
-      `;
+    dialog.innerHTML = `
+      <div class="confirm-message">${message}</div>
+      <div class="confirm-buttons">
+        <button id="confirmOk">موافق</button>
+        <button id="confirmCancel">إلغاء</button>
+      </div>
+    `;
 
-      overlay.appendChild(dialog);
-      document.body.appendChild(overlay);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+      overlay.style.opacity = "1";
+      dialog.style.transform = "translateY(0)";
+    }, 10);
+
+    // دالة للإغلاق
+    let isDialogOpen = true;
+
+    const closeDialog = (result) => {
+      if (!isDialogOpen) return;
+      isDialogOpen = false;
+
+      overlay.style.opacity = "0";
+      dialog.style.transform = "translateY(-20px)";
 
       setTimeout(() => {
-        overlay.style.opacity = "1";
-        dialog.style.transform = "translateY(0)";
-      }, 10);
-
-      document.getElementById("confirmOk").addEventListener("click", () => {
-        resolve(true);
         overlay.remove();
-      });
+        resolve(result);
+      }, 300);
+    };
 
-      document.getElementById("confirmCancel").addEventListener("click", () => {
-        resolve(false);
-        overlay.remove();
-      });
+    // النقر على زر الموافق
+    document.getElementById("confirmOk").addEventListener("click", () => {
+      closeDialog(true);
     });
-  }
+
+    // النقر على زر الإلغاء
+    document.getElementById("confirmCancel").addEventListener("click", () => {
+      closeDialog(false);
+    });
+
+    // النقر خارج مربع الحوار للإغلاق
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        closeDialog(false);
+      }
+    });
+
+    // إضافة event listener للزر Escape
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        closeDialog(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    // تنظيف event listener عند الإغلاق
+    const cleanup = () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+
+    // إضافة event listener لتنظيف الـ listeners عند الإغلاق
+    overlay.addEventListener(
+      "transitionend",
+      () => {
+        if (!isDialogOpen) {
+          cleanup();
+        }
+      },
+      { once: true }
+    );
+  });
+}
 
   // Progress Bar Functions
   function createProgressBar() {
@@ -146,7 +181,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const grayscale = new Uint8Array(pixels.length / 4);
     for (let i = 0; i < pixels.length; i += 4) {
       // تحويل RGB إلى تدرج الرمادي باستخدام الصيغة القياسية
-      grayscale[i / 4] = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+      grayscale[i / 4] =
+        0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
     }
     return grayscale;
   }
@@ -157,7 +193,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const cosTable = new Float64Array(width * height);
     for (let u = 0; u < width; u++) {
       for (let v = 0; v < height; v++) {
-        cosTable[u * height + v] = Math.cos(((2 * u + 1) * v * Math.PI) / (2 * height));
+        cosTable[u * height + v] = Math.cos(
+          ((2 * u + 1) * v * Math.PI) / (2 * height)
+        );
       }
     }
 
@@ -166,7 +204,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         let sum = 0;
         for (let x = 0; x < width; x++) {
           for (let y = 0; y < height; y++) {
-            sum += data[x * height + y] * cosTable[x * height + v] * cosTable[y * width + u];
+            sum +=
+              data[x * height + y] *
+              cosTable[x * height + v] *
+              cosTable[y * width + u];
           }
         }
         const cu = u === 0 ? 1 / Math.sqrt(2) : 1;
@@ -239,14 +280,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (view.getUint32(0) === 0x89504e47) return "png";
       if (view.getUint16(0) === 0xffd8) return "jpg";
       if (view.getUint32(0) === 0x47494638) return "gif";
-      if (view.getUint32(0) === 0x52494646 && view.getUint32(4) === 0x57454250) return "webp";
+      if (view.getUint32(0) === 0x52494646 && view.getUint32(4) === 0x57454250)
+        return "webp";
       if (view.getUint16(0) === 0x424d) return "bmp";
       if (view.getUint32(0) === 0x49492a00) return "tiff";
       if (view.getUint32(0) === 0x4d4d002a) return "tiff";
 
       const text = await blob.slice(0, 100).text();
       if (text.trim().startsWith("<svg") || text.includes("<svg")) return "svg";
-      if (view.getUint16(0) === 0x0000 && view.getUint16(2) === 0x0001) return "ico";
+      if (view.getUint16(0) === 0x0000 && view.getUint16(2) === 0x0001)
+        return "ico";
     } catch (error) {
       console.error("Error detecting image type:", error);
     }
@@ -512,7 +555,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.body.appendChild(overlay);
 
     requestAnimationFrame(() => {
-      overlay.style.background = "rgba(0,0,0,0.8)";
+      overlay.style.background = "rgba(0, 0, 0, 0.58)";
       overlay.style.opacity = "1";
       innerDiv.style.opacity = "1";
     });
@@ -590,11 +633,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             .querySelectorAll("img:not([data-ignore-netnet])")
             .forEach((img) => {
               // استبعاد أيقونات favicon
-              const isFavicon = (img.width <= 16 && img.height <= 16) || 
-                               img.src.includes('favicon.ico') || 
-                               (img.parentNode && img.parentNode.tagName === 'LINK' && 
-                                img.parentNode.getAttribute('rel') && 
-                                img.parentNode.getAttribute('rel').includes('icon'));
+              const isFavicon =
+                (img.width <= 16 && img.height <= 16) ||
+                img.src.includes("favicon.ico") ||
+                (img.parentNode &&
+                  img.parentNode.tagName === "LINK" &&
+                  img.parentNode.getAttribute("rel") &&
+                  img.parentNode.getAttribute("rel").includes("icon"));
 
               if (
                 !isFavicon &&
@@ -650,10 +695,11 @@ document.addEventListener("DOMContentLoaded", async () => {
               const urlMatch = bgImage.match(/url\(["']?(.*?)["']?\)/);
               if (urlMatch && urlMatch[1]) {
                 let src = urlMatch[1].replace(/^["']|["']$/g, "");
-                
+
                 // استبعاد أيقونات favicon في الخلفيات
-                const isFavicon = src.includes('favicon.ico') || 
-                                 src.toLowerCase().includes('favicon');
+                const isFavicon =
+                  src.includes("favicon.ico") ||
+                  src.toLowerCase().includes("favicon");
 
                 if (src.startsWith("http") && !isFavicon) {
                   const wrapper = document.createElement("div");
@@ -729,12 +775,14 @@ document.addEventListener("DOMContentLoaded", async () => {
           }
 
           // استبعاد أيقونات favicon
-          const isFavicon = (img.width <= 16 && img.height <= 16) || 
-                           src.includes('favicon.ico') || 
-                           src.toLowerCase().includes('favicon') ||
-                           (img.parentNode && img.parentNode.tagName === 'LINK' && 
-                            img.parentNode.getAttribute('rel') && 
-                            img.parentNode.getAttribute('rel').includes('icon'));
+          const isFavicon =
+            (img.width <= 16 && img.height <= 16) ||
+            src.includes("favicon.ico") ||
+            src.toLowerCase().includes("favicon") ||
+            (img.parentNode &&
+              img.parentNode.tagName === "LINK" &&
+              img.parentNode.getAttribute("rel") &&
+              img.parentNode.getAttribute("rel").includes("icon"));
 
           if (src && src.startsWith("http") && !isFavicon) {
             const title = (img.title || img.alt || "").trim();
@@ -755,8 +803,9 @@ document.addEventListener("DOMContentLoaded", async () => {
               src = src.replace(/^["']|["']$/g, "");
 
               // استبعاد أيقونات favicon في الخلفيات
-              const isFavicon = src.includes('favicon.ico') || 
-                               src.toLowerCase().includes('favicon');
+              const isFavicon =
+                src.includes("favicon.ico") ||
+                src.toLowerCase().includes("favicon");
 
               if (src.startsWith("http") && !isFavicon) {
                 const title = (
@@ -972,7 +1021,12 @@ document.addEventListener("DOMContentLoaded", async () => {
           for (let [existingHash, images] of imageHashes) {
             if (isSimilarImage(hash, existingHash)) {
               isDuplicate = true;
-              images.push({ id: `img-${globalIndex}`, src, title, element: div });
+              images.push({
+                id: `img-${globalIndex}`,
+                src,
+                title,
+                element: div,
+              });
               imageHashes.set(existingHash, images);
               break;
             }
@@ -980,7 +1034,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         if (!isDuplicate) {
-          imageHashes.set(hash, [{ id: `img-${globalIndex}`, src, title, element: div }]);
+          imageHashes.set(hash, [
+            { id: `img-${globalIndex}`, src, title, element: div },
+          ]);
         }
 
         div.querySelector("input[type=checkbox]").dataset.hash = hash;
@@ -1142,67 +1198,230 @@ document.addEventListener("DOMContentLoaded", async () => {
   filterDuplicatesCheckbox.addEventListener("change", function () {
     const filterEnabled = this.checked;
 
+    // إعادة حساب الصور الفريدة عند تفعيل/تعطيل التصفية
+    const allCheckboxes = document.querySelectorAll(
+      ".image-item input[type=checkbox]"
+    );
+
     if (filterEnabled) {
-      const groupedImages = new Map();
-      // تجميع الصور حسب التشابه
-      for (let [hash, images] of imageHashes) {
-        let foundGroup = false;
-        for (let [groupHash, group] of groupedImages) {
-          if (isSimilarImage(hash, groupHash)) {
-            group.push(...images);
-            groupedImages.set(groupHash, group);
-            foundGroup = true;
+      const uniqueHashes = new Set();
+
+      allCheckboxes.forEach((checkbox) => {
+        const hash = checkbox.dataset.hash;
+        const imageItem = checkbox.closest(".image-item");
+
+        if (!hash) {
+          // إذا لم يكن هناك هاش، نعرض الصورة ونختارها
+          imageItem.style.display = "";
+          checkbox.checked = true;
+          imageItem.classList.add("zoom1");
+          return;
+        }
+
+        let isUnique = true;
+        for (let existingHash of uniqueHashes) {
+          if (isSimilarImage(hash, existingHash)) {
+            isUnique = false;
             break;
           }
         }
-        if (!foundGroup) {
-          groupedImages.set(hash, images);
-        }
-      }
 
-      groupedImages.forEach((images, hash) => {
-        images.forEach((img, index) => {
-          if (img.element) {
-            if (index === 0) {
-              img.element.style.display = "";
-              img.element.querySelector("input[type=checkbox]").checked = true;
-              img.element.classList.add("zoom1");
-            } else {
-              img.element.style.display = "none";
-              img.element.querySelector("input[type=checkbox]").checked = false;
-              img.element.classList.remove("zoom1");
-            }
-          }
-        });
+        if (isUnique) {
+          uniqueHashes.add(hash);
+          imageItem.style.display = "";
+          checkbox.checked = true;
+          imageItem.classList.add("zoom1");
+        } else {
+          imageItem.style.display = "none";
+          checkbox.checked = false;
+          imageItem.classList.remove("zoom1");
+        }
       });
     } else {
-      imageHashes.forEach((images) => {
-        images.forEach((img) => {
-          if (img.element) {
-            img.element.style.display = "";
-            img.element.querySelector("input[type=checkbox]").checked = true;
-            img.element.classList.add("zoom1");
-          }
-        });
+      // إذا كانت التصفية معطلة، نعرض جميع الصور ونختارها
+      allCheckboxes.forEach((checkbox) => {
+        const imageItem = checkbox.closest(".image-item");
+        imageItem.style.display = "";
+        checkbox.checked = true;
+        imageItem.classList.add("zoom1");
       });
     }
+
     updateImageCount();
   });
 
+  // زر تنزيل PDF
+  document
+    .getElementById("download-pdf-btn")
+    .addEventListener("click", async function () {
+      const checkboxes = document.querySelectorAll(
+        "input[type=checkbox]:checked"
+      );
+
+      if (checkboxes.length === 0) {
+        alert("الرجاء تحديد الصور أولاً");
+        return;
+      }
+
+      // حساب عدد الصور الفريدة إذا كان خيار تصفية المكررات مفعلاً
+      let totalImages = checkboxes.length;
+      if (filterDuplicatesCheckbox.checked) {
+        const uniqueHashes = new Set();
+        totalImages = Array.from(checkboxes).filter((cb) => {
+          const hash = cb.dataset.hash;
+          if (!hash) return false;
+          let isUnique = true;
+          for (let existingHash of uniqueHashes) {
+            if (isSimilarImage(hash, existingHash)) {
+              isUnique = false;
+              break;
+            }
+          }
+          if (isUnique) uniqueHashes.add(hash);
+          return isUnique && cb.closest(".image-item").style.display !== "none";
+        }).length;
+      }
+
+      const confirmed = await customConfirm(
+        `هل تريد تنزيل ${totalImages} صورة في ملف PDF؟`
+      );
+
+      if (!confirmed) return;
+
+      const progressBar = showProgressBar();
+      const cancelBtn = document.getElementById("netnet-cancel-download");
+      let cancelled = false;
+
+      cancelBtn.onclick = () => {
+        cancelled = true;
+        hideProgressBar();
+        showNotification(
+          "error",
+          "تم الإلغاء",
+          "تم إلغاء عملية إنشاء PDF",
+          `تم معالجة ${processedCount} من ${totalImages} صور`
+        );
+      };
+
+      const { jsPDF } = await jsPDFPromise;
+      const doc = new jsPDF();
+      let processedCount = 0;
+      const failedDownloads = [];
+
+      const processImage = async (checkbox, index) => {
+        if (cancelled) return;
+
+        const imageItem = checkbox.closest(".image-item");
+        const imgElement = imageItem.querySelector("img");
+        const src = imgElement.src;
+
+        try {
+          updateProgressBar(
+            (index / totalImages) * 0.9,
+            index + 1,
+            totalImages,
+            `جاري معالجة الصورة ${index + 1} من ${totalImages}`
+          );
+
+          const { blob } = await downloadImage(imgElement);
+          const imgUrl = URL.createObjectURL(blob);
+
+          await new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+              const pageWidth = doc.internal.pageSize.getWidth();
+              const pageHeight = doc.internal.pageSize.getHeight();
+              const ratio =
+                Math.min(pageWidth / img.width, pageHeight / img.height) * 0.9;
+              const width = img.width * ratio;
+              const height = img.height * ratio;
+
+              if (index > 0) doc.addPage();
+              doc.addImage(
+                imgUrl,
+                "JPEG",
+                (pageWidth - width) / 2,
+                (pageHeight - height) / 2,
+                width,
+                height
+              );
+              URL.revokeObjectURL(imgUrl);
+              processedCount++;
+              resolve();
+            };
+            img.onerror = () => {
+              failedDownloads.push(src);
+              resolve();
+            };
+            img.src = imgUrl;
+          });
+        } catch (err) {
+          failedDownloads.push(src);
+        }
+      };
+
+      // تصفية الصور المكررة إذا كان الخيار مفعلاً
+      let imagesToProcess = Array.from(checkboxes);
+      if (filterDuplicatesCheckbox.checked) {
+        const uniqueHashes = new Set();
+        imagesToProcess = Array.from(checkboxes).filter((cb) => {
+          const hash = cb.dataset.hash;
+          if (!hash) return false;
+          let isUnique = true;
+          for (let existingHash of uniqueHashes) {
+            if (isSimilarImage(hash, existingHash)) {
+              isUnique = false;
+              break;
+            }
+          }
+          if (isUnique) uniqueHashes.add(hash);
+          return isUnique && cb.closest(".image-item").style.display !== "none";
+        });
+      }
+
+      for (let i = 0; i < imagesToProcess.length; i++) {
+        if (cancelled) break;
+        await processImage(imagesToProcess[i], i);
+      }
+
+      if (cancelled) return;
+
+      updateProgressBar(
+        0.95,
+        totalImages,
+        totalImages,
+        "جاري إنشاء ملف PDF..."
+      );
+
+      doc.save(`images_${new Date().getTime()}.pdf`);
+      hideProgressBar();
+
+      showNotification(
+        "success",
+        "تم الإنشاء بنجاح",
+        `تم إنشاء ملف PDF يحتوي على ${processedCount} صورة`,
+        failedDownloads.length > 0
+          ? `${failedDownloads.length} صور فشل تضمينها`
+          : "تم تضمين جميع الصور بنجاح"
+      );
+    });
+
   downloadBtn.addEventListener("click", async () => {
-    const checkboxes = document.querySelectorAll("input[type=checkbox]:checked");
+    const checkboxes = document.querySelectorAll(
+      "input[type=checkbox]:checked"
+    );
     if (checkboxes.length === 0) {
       alert("الرجاء تحديد الصور أولاً");
       return;
     }
 
-    // جمع الصور الفريدة بناءً على الهاش إذا كان خيار تصفية التكرارات مفعلاً
-    let uniqueImages = [];
+    // حساب عدد الصور الفريدة إذا كان خيار تصفية المكررات مفعلاً
+    let totalImages = checkboxes.length;
     if (filterDuplicatesCheckbox.checked) {
       const uniqueHashes = new Set();
-      uniqueImages = Array.from(checkboxes).filter((cb) => {
+      totalImages = Array.from(checkboxes).filter((cb) => {
         const hash = cb.dataset.hash;
-        if (!hash) return false; // تجاهل الصور بدون هاش
+        if (!hash) return false;
         let isUnique = true;
         for (let existingHash of uniqueHashes) {
           if (isSimilarImage(hash, existingHash)) {
@@ -1212,15 +1431,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         if (isUnique) uniqueHashes.add(hash);
         return isUnique && cb.closest(".image-item").style.display !== "none";
-      });
-    } else {
-      uniqueImages = Array.from(checkboxes);
-    }
-
-    const totalImages = uniqueImages.length;
-    if (totalImages === 0) {
-      alert("لا توجد صور فريدة محددة للتنزيل");
-      return;
+      }).length;
     }
 
     const confirmed = await customConfirm(
@@ -1302,11 +1513,30 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     };
 
+    // تصفية الصور المكررة إذا كان الخيار مفعلاً
+    let imagesToProcess = Array.from(checkboxes);
+    if (filterDuplicatesCheckbox.checked) {
+      const uniqueHashes = new Set();
+      imagesToProcess = Array.from(checkboxes).filter((cb) => {
+        const hash = cb.dataset.hash;
+        if (!hash) return false;
+        let isUnique = true;
+        for (let existingHash of uniqueHashes) {
+          if (isSimilarImage(hash, existingHash)) {
+            isUnique = false;
+            break;
+          }
+        }
+        if (isUnique) uniqueHashes.add(hash);
+        return isUnique && cb.closest(".image-item").style.display !== "none";
+      });
+    }
+
     const batchSize = 5;
-    for (let i = 0; i < uniqueImages.length; i += batchSize) {
+    for (let i = 0; i < imagesToProcess.length; i += batchSize) {
       if (cancelled) break;
 
-      const batch = uniqueImages.slice(i, i + batchSize);
+      const batch = imagesToProcess.slice(i, i + batchSize);
       await Promise.all(batch.map((cb, idx) => processImage(cb, i + idx)));
     }
 
