@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "SnapScraper",
-  "version": "1.0",
+  "version": "2.0",
   "description": "Download selected images from the page.",
   "permissions": [
     "scripting",
     "activeTab",
     "tabs",
     "sidePanel",
-    "downloads"
+    "downloads",
+    "webRequest"
   ],
   "host_permissions": ["<all_urls>"],
   "action": {
@@ -29,7 +30,14 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "css": ["style.css"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["jspdf.umd.min.js", "image/download (1).png"],
+      "matches": ["<all_urls>"]
     }
   ],
   "icons": {
