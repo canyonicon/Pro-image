@@ -193,3 +193,20 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", hideActiveMenuOnClickOutside);
   document.addEventListener("touchstart", hideActiveMenuOnClickOutside);
 });
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  const div = document.getElementById('myDiv12');
+    const closeBtn = document.getElementById('closeBtn12');
+
+    // تحقق إذا كان الديف مغلق مسبقًا
+    if (localStorage.getItem('divClosed') === 'true') {
+      div.style.display = 'none';
+    }
+
+    // عند النقر على زر الإغلاق
+    closeBtn.addEventListener('click', () => {
+      div.style.display = 'none';
+      localStorage.setItem('divClosed', 'true'); // خزّن أنه تم إغلاقه
+    });
+});
