@@ -116,3 +116,22 @@ body.dark-mode .zssx:hover {
 body.dark-mode .ripple {
     background: rgba(255, 255, 255, 0.116);
 }
+body.dark-mode .confirm-dialog {
+    background-color: #313439;
+}
+body.dark-mode .confirm-dialog button#confirmCancel {
+    background: #ffffff33;
+    color: white;
+}
+body.dark-mode .confirm-dialog button#confirmCancel:hover {
+    background: #ffffff44;
+}
+/* body.dark-mode ::-webkit-scrollbar-track {
+    background: #ffffff26;
+} */
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+body.dark-mode .hover {
+    background: #313439;
+}
